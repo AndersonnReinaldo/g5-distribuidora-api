@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model estoque {
+  id_estoque Int      @id @default(autoincrement())
+  id_produto Int
+  quantidade Int
+  status     Int      @default(1)
+  produtos   produtos @relation(fields: [id_produto], references: [id_produto], onUpdate: Restrict, map: "estoque_ibfk_1")
+
+  @@index([id_produto], map: "id_produto")
+}
+
+model produtos {
+  id_produto        Int             @id @default(autoincrement())
+  id_unidade_medida Int
+  id_categoria      Int
+  nome              String          @db.VarChar(255)
+  marca             String          @db.VarChar(255)
+  status            Int             @default(1)
+  estoque           estoque[]
+  unidades_medida   unidades_medida @relation(fields: [id_unidade_medida], references: [id_unidade_medida], onUpdate: Restrict, map: "produtos_ibfk_1")
+  categorias        categorias      @relation(fields: [id_categoria], references: [id_categoria], onUpdate: Restrict, map: "produtos_ibfk_2")
+
+  @@index([id_unidade_medida], map: "id_unidade_medida")
+  @@index([id_categoria], map: "produtos_ibfk_2")
+}
+
+model unidades_medida {
+  id_unidade_medida Int        @id @default(autoincrement())
+  descricao         String     @db.VarChar(50)
+  valor             Int
+  status            Int?       @default(1)
+  produtos          produtos[]
+}
+
+model usuarios {
+  id_usuario Int    @id @default(autoincrement())
+  email      String @unique(map: "email") @db.VarChar(255)
+  usuario    String @unique(map: "usuario") @db.VarChar(255)
+  senha      String @db.VarChar(255)
+  admin      Int    @default(0)
+  status     Int    @default(1)
+}
+
+model categorias {
+  id_categoria Int        @id @default(autoincrement())
+  descricao    String     @db.VarChar(255)
+  status       Int        @default(1)
+  produtos     produtos[]
+}
