@@ -21,15 +21,18 @@ model produtos {
   id_produto        Int             @id @default(autoincrement())
   id_unidade_medida Int
   id_categoria      Int
+  id_marca          Int
   nome              String          @db.VarChar(255)
-  marca             String          @db.VarChar(255)
+  image             String?         @db.Text
   status            Int             @default(1)
   estoque           estoque[]
   unidades_medida   unidades_medida @relation(fields: [id_unidade_medida], references: [id_unidade_medida], onUpdate: Restrict, map: "produtos_ibfk_1")
   categorias        categorias      @relation(fields: [id_categoria], references: [id_categoria], onUpdate: Restrict, map: "produtos_ibfk_2")
+  marca             marca           @relation(fields: [id_marca], references: [id_marca], onUpdate: Restrict, map: "produtos_ibfk_3")
 
   @@index([id_unidade_medida], map: "id_unidade_medida")
   @@index([id_categoria], map: "produtos_ibfk_2")
+  @@index([id_marca], map: "id_marca")
 }
 
 model unidades_medida {
@@ -54,4 +57,11 @@ model categorias {
   descricao    String     @db.VarChar(255)
   status       Int        @default(1)
   produtos     produtos[]
+}
+
+model marca {
+  id_marca  Int        @id @default(autoincrement())
+  descricao String     @db.VarChar(255)
+  status    Int        @default(1)
+  produtos  produtos[]
 }

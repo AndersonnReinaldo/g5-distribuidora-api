@@ -7,7 +7,33 @@ export class StockService {
   constructor(private prisma: PrismaService) {}
 
   async findAll(): Promise<estoque[]> {
-    return this.prisma.estoque.findMany();
+    const estoque = await this.prisma.estoque.findMany({
+      include:{
+        produtos:{
+          include:{
+            categorias: true,
+            marca:{
+              select:{ descricao: true }
+            }
+          }
+        }
+      }
+    });
+
+    return estoque?.map((estoque) => {
+      const { id_estoque,id_produto, quantidade,status,produtos:{ nome,image, categorias, marca  } } = estoque
+      return {
+        id_estoque,
+        nome: nome,
+        image,
+        id_categoria: categorias?.id_categoria,
+        categoria: categorias?.descricao,
+        id_produto,
+        quantidade,
+        marca: marca?.descricao,
+        status
+      }
+    })
   }
 
   async findOne(id: number): Promise<estoque> {
