@@ -8,48 +8,51 @@ datasource db {
 }
 
 model estoque {
-  id_estoque Int      @id @default(autoincrement())
-  id_produto Int
-  quantidade Int
-  status     Int      @default(1)
-  produtos   produtos @relation(fields: [id_produto], references: [id_produto], onUpdate: Restrict, map: "estoque_ibfk_1")
+  id_estoque            Int                     @id @default(autoincrement())
+  id_produto            Int
+  quantidade            Int
+  status                Int                     @default(1)
+  produtos              produtos                @relation(fields: [id_produto], references: [id_produto], onUpdate: Restrict, map: "estoque_ibfk_1")
+  estoque_movimentacoes estoque_movimentacoes[]
 
   @@index([id_produto], map: "id_produto")
 }
 
 model produtos {
-  id_produto        Int             @id @default(autoincrement())
-  id_unidade_medida Int
-  id_categoria      Int
-  id_marca          Int
-  nome              String          @db.VarChar(255)
-  image             String?         @db.Text
-  status            Int             @default(1)
-  estoque           estoque[]
-  unidades_medida   unidades_medida @relation(fields: [id_unidade_medida], references: [id_unidade_medida], onUpdate: Restrict, map: "produtos_ibfk_1")
-  categorias        categorias      @relation(fields: [id_categoria], references: [id_categoria], onUpdate: Restrict, map: "produtos_ibfk_2")
-  marca             marca           @relation(fields: [id_marca], references: [id_marca], onUpdate: Restrict, map: "produtos_ibfk_3")
+  id_produto                 Int             @id @default(autoincrement())
+  id_categoria               Int
+  id_marca                   Int
+  id_unidade_medida_multiplo Int             @default(1)
+  multiplo_vendas            Int             @default(1)
+  valor_unitario             Float           @db.Float
+  nome                       String          @db.VarChar(255)
+  image                      String?         @db.Text
+  status                     Int             @default(1)
+  estoque                    estoque[]
+  categorias                 categorias      @relation(fields: [id_categoria], references: [id_categoria], onUpdate: Restrict, map: "produtos_ibfk_2")
+  marca                      marca           @relation(fields: [id_marca], references: [id_marca], onUpdate: Restrict, map: "produtos_ibfk_3")
+  unidades_medida            unidades_medida @relation(fields: [id_unidade_medida_multiplo], references: [id_unidade_medida], onUpdate: Restrict, map: "produtos_ibfk_4")
 
-  @@index([id_unidade_medida], map: "id_unidade_medida")
   @@index([id_categoria], map: "produtos_ibfk_2")
   @@index([id_marca], map: "id_marca")
+  @@index([id_unidade_medida_multiplo], map: "id_unidade_medida_multiplo")
 }
 
 model unidades_medida {
   id_unidade_medida Int        @id @default(autoincrement())
   descricao         String     @db.VarChar(50)
-  valor             Int
   status            Int?       @default(1)
   produtos          produtos[]
 }
 
 model usuarios {
-  id_usuario Int    @id @default(autoincrement())
-  email      String @unique(map: "email") @db.VarChar(255)
-  usuario    String @unique(map: "usuario") @db.VarChar(255)
-  senha      String @db.VarChar(255)
-  admin      Int    @default(0)
-  status     Int    @default(1)
+  id_usuario            Int                     @id @default(autoincrement())
+  email                 String                  @unique(map: "email") @db.VarChar(255)
+  usuario               String                  @unique(map: "usuario") @db.VarChar(255)
+  senha                 String                  @db.VarChar(255)
+  admin                 Int                     @default(0)
+  status                Int                     @default(1)
+  estoque_movimentacoes estoque_movimentacoes[]
 }
 
 model categorias {
@@ -64,4 +67,32 @@ model marca {
   descricao String     @db.VarChar(255)
   status    Int        @default(1)
   produtos  produtos[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model estoque_movimentacoes {
+  id_estoque_movimentacao Int               @id @default(autoincrement())
+  id_estoque              Int
+  id_usuario              Int
+  tipo_movimento          Int
+  id_metodo_pagamento     Int
+  quantidade              Int
+  valor_unitario          Float             @db.Float
+  valor_total             Float             @db.Float
+  datahora                DateTime          @default(now()) @db.Timestamp(0)
+  status                  Int               @default(1)
+  estoque                 estoque           @relation(fields: [id_estoque], references: [id_estoque], onUpdate: Restrict, map: "estoque_movimentacoes_ibfk_1")
+  usuarios                usuarios          @relation(fields: [id_usuario], references: [id_usuario], onUpdate: Restrict, map: "estoque_movimentacoes_ibfk_2")
+  metodos_pagamento       metodos_pagamento @relation(fields: [id_metodo_pagamento], references: [id_metodo_pagamento], onUpdate: Restrict, map: "estoque_movimentacoes_ibfk_3")
+
+  @@index([id_estoque], map: "id_estoque")
+  @@index([id_usuario], map: "id_usuario")
+  @@index([id_metodo_pagamento], map: "id_metodo_pagamento")
+}
+
+model metodos_pagamento {
+  id_metodo_pagamento   Int                     @id @default(autoincrement())
+  descricao             String                  @db.VarChar(255)
+  status                Int                     @default(1)
+  estoque_movimentacoes estoque_movimentacoes[]
 }

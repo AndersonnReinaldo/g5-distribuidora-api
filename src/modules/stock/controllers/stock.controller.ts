@@ -24,6 +24,12 @@ export class StockController {
   create(@Body() stock: Omit<estoque, 'id' | 'createdAt' | 'updatedAt'>): Promise<estoque> {
     return this.stockService.create(stock);
   }
+
+  @UseGuards(AuthGuard)
+  @Post('movement')
+  movement(@Body() stock: Omit<MovementData, 'id' | 'createdAt' | 'updatedAt'>): Promise<estoque> {
+    return this.stockService.movement(stock);
+  }
   
   @UseGuards(AuthGuard)
   @Put(':id')
