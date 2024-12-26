@@ -7,7 +7,22 @@ export class ProductService {
   constructor(private prisma: PrismaService) {}
 
   async findAll(): Promise<produtos[]> {
-    return this.prisma.produtos.findMany();
+    const produtos = await this.prisma.produtos.findMany({
+      include: { 
+        marca: true,
+        categorias: true,
+        unidades_medida: true
+       },
+    });
+
+    return produtos?.map((produto) => {
+      return {
+        ...produto,
+        marca: produto.marca.descricao,
+        categoria: produto.categorias?.descricao,
+        unidade_medida: produto.unidades_medida?.descricao
+      }
+    })
   }
 
   async findOne(id: number): Promise<produtos> {

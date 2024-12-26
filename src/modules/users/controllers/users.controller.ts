@@ -8,8 +8,8 @@ export class UsersController {
 
   @UseGuards(AuthGuard)
   @Post()
-  async create(@Body() createUserDto: { email: string; usuario: string; senha: string }) {
-    return this.usersService.createUser(createUserDto.email, createUserDto.usuario, createUserDto.senha);
+  async create(@Body() createUserDto: {nome:string; email: string; usuario: string; senha: string }) {
+    return this.usersService.createUser(createUserDto?.nome, createUserDto.email, createUserDto.usuario, createUserDto.senha);
   }
 
   @UseGuards(AuthGuard)

@@ -36,4 +36,10 @@ export class StockController {
   update(@Param('id') id: number, @Body() stock: Partial<estoque>): Promise<estoque> {
     return this.stockService.update(+id, stock);
   }
+
+  @UseGuards(AuthGuard)
+  @Get('movement/:id')
+  findAllMovementsById(@Param('id') id: number): Promise<any> {
+    return this.stockService.listAllMovementsById(+id);
+  }
 }

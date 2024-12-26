@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { estoque } from '@prisma/client';
+import * as moment from 'moment-timezone'
+
 
 @Injectable()
 export class StockService {
@@ -36,7 +38,6 @@ export class StockService {
            marca,
            multiplo_vendas,
            valor_unitario,
-           id_unidade_medida_multiplo,
            unidades_medida
         }
        } = estoque
@@ -99,22 +100,37 @@ export class StockService {
       throw new NotFoundException(`Quantidade nao informada.`);
     }
 
-    const estoque = await this.prisma.estoque.findUnique({ where: { id_estoque: data?.id_estoque } });
+    const estoque = await this.prisma.estoque.findUnique({ 
+        include:{
+          produtos:{
+            select:{
+              valor_unitario:true
+            }
+          }
+        },
+      where: { id_estoque: data?.id_estoque } 
+    });
+
+    const valor_unitario = data?.valor_unitario ? data?.valor_unitario : estoque?.produtos?.valor_unitario
 
     if (!estoque) {
       throw new NotFoundException(`Estoque com ID ${data?.id_estoque} não encontrado.`);  
     }
 
-    if (data?.quantidade > estoque.quantidade && data?.tipo_movimento == 1) {
-      throw new NotFoundException(`Quantidade nao disponivel para venda.`);
+    if (data?.quantidade > estoque.quantidade && data?.tipo_movimento == 2) {
+      throw new NotFoundException(`Quantidade nao disponivel para venda. Estoque: ${estoque?.quantidade}`);
+    }
+
+    if(!valor_unitario){
+      throw new NotFoundException(`Valor unitario nao informado.`);
     }
 
     await this.prisma.estoque_movimentacoes.create({
       data: {
         id_estoque: data?.id_estoque,
         tipo_movimento: data?.tipo_movimento,
-        valor_total: data?.valor_unitario * data?.quantidade,
-        valor_unitario: data?.valor_unitario,
+        valor_total: valor_unitario * data?.quantidade,
+        valor_unitario: valor_unitario,
         id_usuario: data?.id_usuario,
         id_metodo_pagamento: data?.id_metodo_pagamento,
         quantidade: data?.quantidade  
@@ -124,5 +140,56 @@ export class StockService {
     const quantidade = data?.tipo_movimento == 2 ? estoque.quantidade - data?.quantidade : estoque.quantidade + data?.quantidade
 
     return this.prisma.estoque.update({ where: { id_estoque: data?.id_estoque }, data: { quantidade } });
+  }
+
+  async listAllMovementsById(id: number) {
+    const estoque = await this.prisma.estoque_movimentacoes.findMany({
+      orderBy:{
+        id_estoque_movimentacao: 'desc'
+      },
+      include:{
+        estoque:{
+          select:{
+            produtos: {
+              select: {
+                nome: true,
+                valor_unitario: true,
+                multiplo_vendas:true
+              }
+            }
+          }   
+        },
+        metodos_pagamento:{
+          select: {
+            descricao: true
+          }
+        },
+        usuarios:{
+          select:{
+            nome: true
+          }
+        }
+      },
+      where: { id_estoque: id } 
+    }
+  );
+
+    return estoque?.map((estoque) => {
+      const {id_estoque_movimentacao, datahora, valor_total, valor_unitario, quantidade, metodos_pagamento, usuarios,estoque:{ produtos }} = estoque
+        return {
+          id_estoque_movimentacao,
+          quantidade,
+          valor_unitario_padrao: produtos?.valor_unitario,
+          valor_unitario_venda:valor_unitario,
+          valor_total,
+          tipo_movimento: estoque?.tipo_movimento == 1 ? 'Entrada' : 'Saida',
+          datahoraFormat:  moment(datahora).tz('America/Fortaleza').format("DD/MM/YYYY [às] HH:mm:ss"),
+          datahora,
+          metodo_pagamento: metodos_pagamento?.descricao,
+          responsavel: usuarios?.nome,
+          produto: produtos?.nome,
+          quantidadeMultiplo: quantidade < produtos?.multiplo_vendas ? 0 : Math.round(quantidade / produtos?.multiplo_vendas),
+        }
+    });
   }
 }
