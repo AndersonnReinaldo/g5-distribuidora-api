@@ -1,4 +1,5 @@
 interface MovementData {
+    id_produto: number;
     id_estoque: number;
     quantidade?: number;
     tipo_movimento?: number;

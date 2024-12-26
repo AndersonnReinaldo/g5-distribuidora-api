@@ -95,12 +95,13 @@ export class StockService {
   }
 
   async movement(data: Partial<MovementData>) {
-    
+    let estoque: any;
+
     if (!data?.quantidade) {
       throw new NotFoundException(`Quantidade nao informada.`);
     }
 
-    const estoque = await this.prisma.estoque.findUnique({ 
+    estoque = await this.prisma.estoque.findFirst({ 
         include:{
           produtos:{
             select:{
@@ -108,13 +109,33 @@ export class StockService {
             }
           }
         },
-      where: { id_estoque: data?.id_estoque } 
+      where: { 
+          id_produto: data?.id_produto,
+          status: 1
+        } 
     });
 
     const valor_unitario = data?.valor_unitario ? data?.valor_unitario : estoque?.produtos?.valor_unitario
 
     if (!estoque) {
-      throw new NotFoundException(`Estoque com ID ${data?.id_estoque} não encontrado.`);  
+      const { id_estoque } = await this.prisma.estoque.create({ data:{
+        id_produto: data?.id_produto,
+        quantidade: data?.quantidade
+       } });
+
+       estoque = await this.prisma.estoque.findFirst({ 
+        include:{
+          produtos:{
+            select:{
+              valor_unitario:true
+            }
+          }
+        },
+        where: { 
+          id_estoque,
+          status: 1
+        }
+      });
     }
 
     if (data?.quantidade > estoque.quantidade && data?.tipo_movimento == 2) {
@@ -127,7 +148,7 @@ export class StockService {
 
     await this.prisma.estoque_movimentacoes.create({
       data: {
-        id_estoque: data?.id_estoque,
+        id_estoque: estoque?.id_estoque,
         tipo_movimento: data?.tipo_movimento,
         valor_total: valor_unitario * data?.quantidade,
         valor_unitario: valor_unitario,
@@ -139,7 +160,7 @@ export class StockService {
 
     const quantidade = data?.tipo_movimento == 2 ? estoque.quantidade - data?.quantidade : estoque.quantidade + data?.quantidade
 
-    return this.prisma.estoque.update({ where: { id_estoque: data?.id_estoque }, data: { quantidade } });
+    return this.prisma.estoque.update({ where: { id_estoque: estoque?.id_estoque }, data: { quantidade } });
   }
 
   async listAllMovementsById(id: number) {
