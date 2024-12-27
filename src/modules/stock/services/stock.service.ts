@@ -117,6 +117,10 @@ export class StockService {
 
     const valor_unitario = data?.valor_unitario ? data?.valor_unitario : estoque?.produtos?.valor_unitario
 
+    if(!valor_unitario){
+      throw new NotFoundException(`Valor unitario nao informado.`);
+    }
+
     if (!estoque) {
       const { id_estoque } = await this.prisma.estoque.create({ data:{
         id_produto: data?.id_produto,
@@ -136,14 +140,28 @@ export class StockService {
           status: 1
         }
       });
-    }
 
+      if (data?.quantidade > estoque.quantidade && data?.tipo_movimento == 2) {
+        throw new NotFoundException(`Quantidade nao disponivel para venda. Estoque: ${estoque?.quantidade}`);
+      }
+
+      await this.prisma.estoque_movimentacoes.create({
+        data: {
+          id_estoque: estoque?.id_estoque,
+          tipo_movimento: data?.tipo_movimento,
+          valor_total: valor_unitario * data?.quantidade,
+          valor_unitario: valor_unitario,
+          id_usuario: data?.id_usuario,
+          id_metodo_pagamento: data?.id_metodo_pagamento,
+          quantidade: data?.quantidade  
+        }
+      });
+
+      return estoque;
+
+    }else {
     if (data?.quantidade > estoque.quantidade && data?.tipo_movimento == 2) {
       throw new NotFoundException(`Quantidade nao disponivel para venda. Estoque: ${estoque?.quantidade}`);
-    }
-
-    if(!valor_unitario){
-      throw new NotFoundException(`Valor unitario nao informado.`);
     }
 
     await this.prisma.estoque_movimentacoes.create({
@@ -161,6 +179,7 @@ export class StockService {
     const quantidade = data?.tipo_movimento == 2 ? estoque.quantidade - data?.quantidade : estoque.quantidade + data?.quantidade
 
     return this.prisma.estoque.update({ where: { id_estoque: estoque?.id_estoque }, data: { quantidade } });
+    }
   }
 
   async listAllMovementsById(id: number) {
