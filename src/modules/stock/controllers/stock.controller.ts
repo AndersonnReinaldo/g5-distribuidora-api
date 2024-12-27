@@ -24,10 +24,22 @@ export class StockController {
   create(@Body() stock: Omit<estoque, 'id' | 'createdAt' | 'updatedAt'>): Promise<estoque> {
     return this.stockService.create(stock);
   }
+
+  @UseGuards(AuthGuard)
+  @Post('movement')
+  movement(@Body() stock: Omit<MovementData, 'id' | 'createdAt' | 'updatedAt'>): Promise<estoque> {
+    return this.stockService.movement(stock);
+  }
   
   @UseGuards(AuthGuard)
   @Put(':id')
   update(@Param('id') id: number, @Body() stock: Partial<estoque>): Promise<estoque> {
     return this.stockService.update(+id, stock);
+  }
+
+  @UseGuards(AuthGuard)
+  @Get('movement/:id')
+  findAllMovementsById(@Param('id') id: number): Promise<any> {
+    return this.stockService.listAllMovementsById(+id);
   }
 }
