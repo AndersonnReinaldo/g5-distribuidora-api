@@ -27,7 +27,9 @@ export class ProductService {
         quantidadeMultiplo: produto.estoque[0]?.quantidade < produto.multiplo_vendas ? 0 : Math.round(produto.estoque[0]?.quantidade / produto.multiplo_vendas),
         marca: produto.marca.descricao,
         categoria: produto.categorias?.descricao,
-        unidade_medida: produto.unidades_medida?.descricao
+        unidade_medida: produto.unidades_medida?.descricao,
+        id_marca: produto?.id_marca,
+        id_unidade_medida_multiplo: produto?.id_unidade_medida_multiplo
       }
     })
   }
