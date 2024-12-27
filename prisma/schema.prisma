@@ -19,19 +19,20 @@ model estoque {
 }
 
 model produtos {
-  id_produto                 Int             @id @default(autoincrement())
+  id_produto                 Int                       @id @default(autoincrement())
   id_categoria               Int
   id_marca                   Int
-  id_unidade_medida_multiplo Int             @default(1)
-  multiplo_vendas            Int             @default(1)
-  valor_unitario             Float           @db.Float
-  nome                       String          @db.VarChar(255)
-  image                      String?         @db.Text
-  status                     Int             @default(1)
+  id_unidade_medida_multiplo Int                       @default(1)
+  multiplo_vendas            Int                       @default(1)
+  valor_unitario             Float                     @db.Float
+  nome                       String                    @db.VarChar(255)
+  image                      String?                   @db.Text
+  status                     Int                       @default(1)
+  cestas_basicas_produtos    cestas_basicas_produtos[]
   estoque                    estoque[]
-  categorias                 categorias      @relation(fields: [id_categoria], references: [id_categoria], onUpdate: Restrict, map: "produtos_ibfk_2")
-  marca                      marca           @relation(fields: [id_marca], references: [id_marca], onUpdate: Restrict, map: "produtos_ibfk_3")
-  unidades_medida            unidades_medida @relation(fields: [id_unidade_medida_multiplo], references: [id_unidade_medida], onUpdate: Restrict, map: "produtos_ibfk_4")
+  categorias                 categorias                @relation(fields: [id_categoria], references: [id_categoria], onUpdate: Restrict, map: "produtos_ibfk_2")
+  marca                      marca                     @relation(fields: [id_marca], references: [id_marca], onUpdate: Restrict, map: "produtos_ibfk_3")
+  unidades_medida            unidades_medida           @relation(fields: [id_unidade_medida_multiplo], references: [id_unidade_medida], onUpdate: Restrict, map: "produtos_ibfk_4")
 
   @@index([id_categoria], map: "produtos_ibfk_2")
   @@index([id_marca], map: "id_marca")
@@ -53,6 +54,7 @@ model usuarios {
   senha                 String                  @db.VarChar(255)
   admin                 Int                     @default(0)
   status                Int                     @default(1)
+  cestas_basicas        cestas_basicas[]
   estoque_movimentacoes estoque_movimentacoes[]
 }
 
@@ -96,4 +98,29 @@ model metodos_pagamento {
   descricao             String                  @db.VarChar(255)
   status                Int                     @default(1)
   estoque_movimentacoes estoque_movimentacoes[]
+}
+
+model cestas_basicas {
+  id_cesta_basica         Int                       @id @default(autoincrement())
+  id_usuario              Int
+  descricao               String                    @db.VarChar(255)
+  status                  Int                       @default(1)
+  usuarios                usuarios                  @relation(fields: [id_usuario], references: [id_usuario], onUpdate: Restrict, map: "cestas_basicas_ibfk_1")
+  cestas_basicas_produtos cestas_basicas_produtos[]
+
+  @@index([id_usuario], map: "id_usuario")
+}
+
+model cestas_basicas_produtos {
+  id_cesta_basica_produto Int            @id @default(autoincrement())
+  id_cesta_basica         Int
+  id_produto              Int
+  quantidade              Int
+  valor_unitario          Float          @db.Float
+  status                  Int            @default(1)
+  cestas_basicas          cestas_basicas @relation(fields: [id_cesta_basica], references: [id_cesta_basica], onUpdate: Restrict, map: "cestas_basicas_produtos_ibfk_1")
+  produtos                produtos       @relation(fields: [id_produto], references: [id_produto], onUpdate: Restrict, map: "cestas_basicas_produtos_ibfk_2")
+
+  @@index([id_cesta_basica], map: "id_cesta_basica")
+  @@index([id_produto], map: "id_produto")
 }
