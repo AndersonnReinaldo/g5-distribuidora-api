@@ -28,6 +28,6 @@ export class AuthService {
     const payload = { sub: foundUser.id_usuario, username: foundUser.senha };
 
     const token = this.jwtService.sign(payload);
-    return { token, expiresIn: this.jwtExpirationTimeInSeconds };
+    return { token, expiresIn: this.jwtExpirationTimeInSeconds, user: foundUser };
   }
 }
