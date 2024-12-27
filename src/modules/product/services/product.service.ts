@@ -11,13 +11,20 @@ export class ProductService {
       include: { 
         marca: true,
         categorias: true,
-        unidades_medida: true
+        unidades_medida: true,
+        estoque:{
+          select:{
+            quantidade: true
+          }
+        }
        },
     });
 
     return produtos?.map((produto) => {
       return {
         ...produto,
+        quantidade: produto.estoque[0]?.quantidade,
+        quantidadeMultiplo: produto.estoque[0]?.quantidade < produto.multiplo_vendas ? 0 : Math.round(produto.estoque[0]?.quantidade / produto.multiplo_vendas),
         marca: produto.marca.descricao,
         categoria: produto.categorias?.descricao,
         unidade_medida: produto.unidades_medida?.descricao
