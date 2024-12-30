@@ -21,3 +21,21 @@ interface MovementData {
     id_usuario?: number;
     id_metodo_pagamento?: number;
   }
+
+  interface CheckoutAttributes {
+    id_usuario?: number;
+    id_caixa_dia:number;
+    products?: Array<{
+      id_produto: number; 
+      id_estoque: number;       
+      quantidade: number;        
+      valor_total: number;
+      valor_unitario: number;
+      nome?: string;       
+    }>;
+    id_metodo_pagamento?: number; 
+    valor_total?: number;         
+    valor_pago?: number;          
+    troco?: number;              
+  }
+  

@@ -52,7 +52,7 @@ export class StockService {
         categoria: categorias?.descricao,
         id_produto,
         quantidade,
-        quantidadeMultiplo: quantidade < multiplo_vendas ? 0 : Math.round(quantidade / multiplo_vendas),
+        quantidadeMultiplo: quantidade < multiplo_vendas ? 0 : Math.floor(quantidade / multiplo_vendas),
         unidade_medida: unidades_medida?.descricao,
         marca: marca?.descricao,
         status
@@ -228,7 +228,7 @@ export class StockService {
           metodo_pagamento: metodos_pagamento?.descricao,
           responsavel: usuarios?.nome,
           produto: produtos?.nome,
-          quantidadeMultiplo: quantidade < produtos?.multiplo_vendas ? 0 : Math.round(quantidade / produtos?.multiplo_vendas),
+          quantidadeMultiplo: quantidade < produtos?.multiplo_vendas ? 0 : Math.floor(quantidade / produtos?.multiplo_vendas),
         }
     });
   }

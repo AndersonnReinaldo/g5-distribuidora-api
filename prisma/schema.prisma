@@ -14,6 +14,7 @@ model estoque {
   status                Int                     @default(1)
   produtos              produtos                @relation(fields: [id_produto], references: [id_produto], onUpdate: Restrict, map: "estoque_ibfk_1")
   estoque_movimentacoes estoque_movimentacoes[]
+  itens_transacao       itens_transacao[]
 
   @@index([id_produto], map: "id_produto")
 }
@@ -30,6 +31,7 @@ model produtos {
   status                     Int                       @default(1)
   cestas_basicas_produtos    cestas_basicas_produtos[]
   estoque                    estoque[]
+  itens_transacao            itens_transacao[]
   categorias                 categorias                @relation(fields: [id_categoria], references: [id_categoria], onUpdate: Restrict, map: "produtos_ibfk_2")
   marca                      marca                     @relation(fields: [id_marca], references: [id_marca], onUpdate: Restrict, map: "produtos_ibfk_3")
   unidades_medida            unidades_medida           @relation(fields: [id_unidade_medida_multiplo], references: [id_unidade_medida], onUpdate: Restrict, map: "produtos_ibfk_4")
@@ -54,8 +56,10 @@ model usuarios {
   senha                 String                  @db.VarChar(255)
   admin                 Int                     @default(0)
   status                Int                     @default(1)
+  caixas_dia            caixas_dia[]
   cestas_basicas        cestas_basicas[]
   estoque_movimentacoes estoque_movimentacoes[]
+  transacoes            transacoes[]
 }
 
 model categorias {
@@ -98,6 +102,7 @@ model metodos_pagamento {
   descricao             String                  @db.VarChar(255)
   status                Int                     @default(1)
   estoque_movimentacoes estoque_movimentacoes[]
+  transacoes            transacoes[]
 }
 
 model cestas_basicas {
@@ -123,4 +128,54 @@ model cestas_basicas_produtos {
 
   @@index([id_cesta_basica], map: "id_cesta_basica")
   @@index([id_produto], map: "id_produto")
+}
+
+model caixas_dia {
+  id_caixa_dia         Int          @id @default(autoincrement())
+  id_usuario           Int
+  valor_total          Float        @default(0) @db.Float
+  data_hora_abertura   DateTime     @default(now()) @db.Timestamp(0)
+  data_hora_fechamento DateTime?    @db.Timestamp(0)
+  status               Int          @default(1)
+  usuarios             usuarios     @relation(fields: [id_usuario], references: [id_usuario], onUpdate: Restrict, map: "caixas_dia_ibfk_1")
+  transacoes           transacoes[]
+
+  @@index([id_usuario], map: "id_usuario")
+}
+
+model itens_transacao {
+  id_item_transacao Int        @id @default(autoincrement())
+  id_transacao      Int
+  id_produto        Int
+  id_estoque        Int
+  quantidade        Int
+  valor_unitario    Float      @db.Float
+  desconto          Float      @default(0) @db.Float
+  status            Int        @default(1)
+  estoque           estoque    @relation(fields: [id_estoque], references: [id_estoque], onUpdate: Restrict, map: "itens_transacao_ibfk_1")
+  produtos          produtos   @relation(fields: [id_produto], references: [id_produto], onUpdate: Restrict, map: "itens_transacao_ibfk_2")
+  transacoes        transacoes @relation(fields: [id_transacao], references: [id_transacao], onUpdate: Restrict, map: "itens_transacao_ibfk_3")
+
+  @@index([id_estoque], map: "id_estoque")
+  @@index([id_produto], map: "id_produto")
+  @@index([id_transacao], map: "id_transacao")
+}
+
+model transacoes {
+  id_transacao        Int               @id @default(autoincrement())
+  id_cliente          Int?
+  id_caixa_dia        Int
+  id_usuario          Int
+  id_metodo_pagamento Int
+  data_transacao      DateTime          @default(now()) @db.Timestamp(0)
+  valor_total         Float             @db.Float
+  status              Int?              @default(1)
+  itens_transacao     itens_transacao[]
+  usuarios            usuarios          @relation(fields: [id_usuario], references: [id_usuario], onUpdate: Restrict, map: "transacoes_ibfk_1")
+  caixas_dia          caixas_dia        @relation(fields: [id_caixa_dia], references: [id_caixa_dia], onUpdate: Restrict, map: "transacoes_ibfk_2")
+  metodos_pagamento   metodos_pagamento @relation(fields: [id_metodo_pagamento], references: [id_metodo_pagamento], onUpdate: Restrict, map: "transacoes_ibfk_3")
+
+  @@index([id_caixa_dia], map: "id_caixa_dia")
+  @@index([id_metodo_pagamento], map: "id_metodo_pagamento")
+  @@index([id_usuario], map: "id_usuario")
 }
