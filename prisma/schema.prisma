@@ -134,6 +134,7 @@ model caixas_dia {
   id_caixa_dia         Int          @id @default(autoincrement())
   id_usuario           Int
   valor_total          Float        @default(0) @db.Float
+  valor_sangria        Float?       @db.Float
   data_hora_abertura   DateTime     @default(now()) @db.Timestamp(0)
   data_hora_fechamento DateTime?    @db.Timestamp(0)
   status               Int          @default(1)

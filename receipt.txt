@@ -5,12 +5,9 @@ Empresa: G5 Distribuidora
 CNPJ: 00.000.000/0000-00
 Endereço: Beberibe - CE
 ----------------------------------------
-Coca Cola 2l         Qtd: 6  R$ 12.00
-Cerveja skol ml      Qtd: 5  R$ 3.21
-São Geraldo 600ml    Qtd: 1  R$ 8.00
-soja  900ml          Qtd: 2  R$ 7.50
+Cerveja skol ml      Qtd: 19  R$ 3.21
 ----------------------------------------
-TOTAL:                      R$ 111.05
+TOTAL:                      R$ 60.99
 FORMA DE PAGAMENTO: Dinheiro
 ****************************************
 QR Code: Gerado e não exibido em texto
