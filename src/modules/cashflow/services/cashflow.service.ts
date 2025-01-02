@@ -109,7 +109,7 @@ export class CashflowService {
       const itensPrint = data.products.map((item) => ({
         name: item.nome,
         quantity: item.quantidade,
-        price: item.valor_unitario,
+        price: item.valor_unitario * item.quantidade,
         total: item.quantidade * item.valor_unitario
       }));
   
