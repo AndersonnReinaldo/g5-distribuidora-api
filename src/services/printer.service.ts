@@ -4,6 +4,8 @@ import * as QRCode from 'qrcode';
 import * as fs from 'fs';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { formatToBRL } from 'src/utils/string';
+import { PrismaService } from 'src/modules/prisma/prisma.service';
+import puppeteer from 'puppeteer';
 
 @Injectable()
 export class PrinterService {
@@ -11,7 +13,7 @@ export class PrinterService {
   private printer: any;
   private readonly logger = new Logger(PrinterService.name);
 
-  constructor() {
+  constructor(private readonly prisma: PrismaService) {
     try {
       // Configurar a conexão com a impressora
       escpos.USB = require('escpos-usb');
@@ -34,30 +36,21 @@ export class PrinterService {
     }
   }
 
-  /**
-   * Imprime o cupom fiscal ou salva em um arquivo PDF se não houver impressora
-   * @param companyInfo Informações da empresa
-   * @param items Lista de itens vendidos
-   * @param payment Método de pagamento
-   */
-  async printReceipt(
-    companyInfo: { name: string; cnpj: string; address: string },
+  private async generateReceiptContent(
     items: { name: string; quantity: number; price: number }[],
     payment: string,
-  ): Promise<void> {
-    const total = items.reduce(
-      (sum, item) => sum + item.price,
-      0,
-    );
-
+  ): Promise<{ text: string[]; qrCodeImage: string; company: any }> {
+    const total = items.reduce((sum, item) => sum + item.price, 0);
     const receiptText = [];
+
+    const company = await this.prisma.empresa_config.findFirst();
 
     receiptText.push('****************************************');
     receiptText.push('        DOCUMENTO SEM VALOR FISCAL      ');
     receiptText.push('****************************************');
-    receiptText.push(`Empresa: ${companyInfo.name}`);
-    receiptText.push(`CNPJ: ${companyInfo.cnpj}`);
-    receiptText.push(`Endereço: ${companyInfo.address}`);
+    receiptText.push(`Empresa: ${company.razao_social}`);
+    receiptText.push(`CNPJ: ${company.cnpj}`);
+    receiptText.push(`Endereço: ${company.endereco}`);
     receiptText.push('----------------------------------------');
 
     items.forEach((item) => {
@@ -78,43 +71,98 @@ export class PrinterService {
     receiptText.push('        OBRIGADO PELA PREFERÊNCIA       ');
     receiptText.push('****************************************');
 
-    // Verifica se existe uma impressora
+    return { text: receiptText, qrCodeImage, company };
+  }
+
+  private async generateReceiptContentPdf(
+    items: { name: string; quantity: number; price: number }[],
+    payment: string,
+  ): Promise<{ text: string[]; company: any }> {
+    const total = items.reduce((sum, item) => sum + item.price, 0);
+    const receiptText = [];
+    const divisaoEstrelas = '*******************************************************************************************'
+    const divisaoTracos = '----------------------------------------------------------------------------------------------------------';
+    const company = await this.prisma.empresa_config.findFirst();
+  
+    // Cabeçalho do recibo
+    receiptText.push(divisaoEstrelas);
+    receiptText.push('                                   DOCUMENTO SEM VALOR FISCAL                           ');
+    receiptText.push(divisaoEstrelas);
+    receiptText.push(`Empresa: ${company.razao_social}`);
+    receiptText.push(`CNPJ: ${company.cnpj}`);
+    receiptText.push(`Endereço: ${company.endereco}`);
+    receiptText.push(divisaoTracos);
+  
+    // Detalhes dos itens
+    items.forEach((item) => {
+      receiptText.push(
+        `${item.name.padEnd(20)} Qtd: ${item.quantity.toString().padStart(3)}  R$ ${formatToBRL(item.price)}`,
+      );
+    });
+  
+    receiptText.push(divisaoTracos);
+    receiptText.push(`TOTAL: ${' '.repeat(36)}R$ ${formatToBRL(total)}`);
+    receiptText.push(`FORMA DE PAGAMENTO: ${payment}`);
+    receiptText.push(divisaoTracos);
+  
+  
+    // Rodapé do recibo
+    receiptText.push(divisaoEstrelas);
+    receiptText.push('                                     OBRIGADO PELA PREFERÊNCIA                           ');
+    receiptText.push(divisaoEstrelas);
+  
+    return { text: receiptText, company };
+  }
+
+  async generateBlob(
+    items: { name: string; quantity: number; price: number }[],
+    payment: string,
+  ): Promise<Buffer> {
+    const { text } = await this.generateReceiptContentPdf(items, payment);
+
+    const pdfDoc = await PDFDocument.create();
+    const page = pdfDoc.addPage([400, 600]);
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+    let y = 550;
+    page.drawText(text.join('\n'), {
+      x: 20,
+      y,
+      size: 10,
+      font,
+      color: rgb(0, 0, 0),
+    });
+
+    const pdfBytes = await pdfDoc.save();
+    return Buffer.from(pdfBytes);
+  }
+  
+
+  async saveAsPdf(
+    items: { name: string; quantity: number; price: number }[],
+    payment: string,
+  ): Promise<string> {
+    const { company } = await this.generateReceiptContent(items, payment);
+    const pdfBytes = await this.generateBlob(items, payment);
+
+    const filePath = `./temp/${Date.now()}-${company?.razao_social}.pdf`;
+    fs.writeFileSync(filePath, pdfBytes);
+
+    this.logger.log(`Cupom fiscal salvo em: ${filePath}`);
+    return filePath;
+  }
+
+  async printToThermalPrinter(
+    items: { name: string; quantity: number; price: number }[],
+    payment: string,
+  ): Promise<void> {
+    const { text, qrCodeImage } = await this.generateReceiptContent(items, payment);
+
     if (!this.device || !this.printer) {
-      this.logger.warn('Impressora não disponível. Salvando em PDF.');
-
-      const pdfDoc = await PDFDocument.create();
-      const page = pdfDoc.addPage([400, 600]);
-      const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-
-      let y = 550;
-
-      page.drawText(receiptText.join('\n'), {
-        x: 20,
-        y,
-        size: 10,
-        font,
-        color: rgb(0, 0, 0),
-      });
-
-      const qrImageBytes = Buffer.from(qrCodeImage.split(',')[1], 'base64');
-      const qrImage = await pdfDoc.embedPng(qrImageBytes);
-
-      page.drawImage(qrImage, {
-        x: 150,
-        y: 50,
-        width: 100,
-        height: 100,
-      });
-
-      const pdfBytes = await pdfDoc.save();
-      const filePath = `./temp/${Date.now()}-${companyInfo?.name}.pdf`;
-      fs.writeFileSync(filePath, pdfBytes);
-
-      this.logger.log(`Cupom fiscal salvo em: ${filePath}`);
+      this.logger.warn('Impressora não disponível.');
       return;
     }
 
-    // Se a impressora estiver disponível
     return new Promise((resolve, reject) => {
       this.device.open(async (err: Error) => {
         if (err) {
@@ -123,10 +171,9 @@ export class PrinterService {
           return;
         }
 
-        // Imprime o cupom
         this.printer
           .align('CT')
-          .text(receiptText.join('\n'))
+          .text(text.join('\n'))
           .qrimage(qrCodeImage, { size: 10 })
           .cut()
           .close(resolve);

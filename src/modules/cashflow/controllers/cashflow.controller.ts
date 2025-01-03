@@ -1,6 +1,6 @@
-import { Controller, Get, Post, Param, Body, Put, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, Put, UseGuards, Res } from '@nestjs/common';
 import { CashflowService } from '../services/cashflow.service';
-import { caixas_dia } from '@prisma/client';
+import { caixas_dia, transacoes } from '@prisma/client';
 import { AuthGuard } from 'src/modules/auth/auth.guard';
 
 @Controller('cashflow')
@@ -55,4 +55,23 @@ export class CashflowController {
   makeSale(@Body() stock: CheckoutAttributes): Promise<any> {
     return this.cashflowService.makeSale(stock);
   }
+
+  @UseGuards(AuthGuard)
+  @Get('sale/invoice/pdf/:id')
+  async printInvoicePdf(@Param('id') id: number, @Res() res): Promise<any> {
+    try {
+      const pdfBuffer = await this.cashflowService.printInvoicePdf(+id);
+
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `inline; filename=invoice-${id}.pdf`,
+      });
+
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error('Erro ao gerar o PDF:', error);
+      res.status(500).send('Erro ao gerar o PDF.');
+    }
+  }
+  
 }

@@ -33,9 +33,13 @@ interface MovementData {
       valor_unitario: number;
       nome?: string;       
     }>;
-    id_metodo_pagamento?: number; 
-    valor_total?: number;         
-    valor_pago?: number;          
+
+    valor_pago?: number;
+    valor_pago_secundario?: number;
+    valor_total: number;
+    id_metodo_pagamento: number;
+    id_metodo_pagamento_secundario: number;
+    pagamento_misto: number;       
     troco?: number;              
   }
   

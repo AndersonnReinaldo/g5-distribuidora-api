@@ -34,7 +34,9 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pdf-lib": "^1.17.1",
+    "pdfmake": "^0.2.18",
     "prisma": "^6.1.0",
+    "puppeteer": "^23.11.1",
     "qrcode": "^1.5.4",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.1"

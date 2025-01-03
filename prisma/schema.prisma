@@ -163,20 +163,31 @@ model itens_transacao {
 }
 
 model transacoes {
-  id_transacao        Int               @id @default(autoincrement())
-  id_cliente          Int?
-  id_caixa_dia        Int
-  id_usuario          Int
-  id_metodo_pagamento Int
-  data_transacao      DateTime          @default(now()) @db.Timestamp(0)
-  valor_total         Float             @db.Float
-  status              Int?              @default(1)
-  itens_transacao     itens_transacao[]
-  usuarios            usuarios          @relation(fields: [id_usuario], references: [id_usuario], onUpdate: Restrict, map: "transacoes_ibfk_1")
-  caixas_dia          caixas_dia        @relation(fields: [id_caixa_dia], references: [id_caixa_dia], onUpdate: Restrict, map: "transacoes_ibfk_2")
-  metodos_pagamento   metodos_pagamento @relation(fields: [id_metodo_pagamento], references: [id_metodo_pagamento], onUpdate: Restrict, map: "transacoes_ibfk_3")
+  id_transacao                   Int               @id @default(autoincrement())
+  id_cliente                     Int?
+  id_caixa_dia                   Int
+  id_usuario                     Int
+  id_metodo_pagamento            Int
+  id_metodo_pagamento_secundario Int?
+  data_transacao                 DateTime          @default(now()) @db.Timestamp(0)
+  valor_pago                     Float             @db.Float
+  valor_pago_secundario          Float             @db.Float
+  valor_total                    Float             @db.Float
+  pagamento_misto                Int
+  status                         Int?              @default(1)
+  itens_transacao                itens_transacao[]
+  usuarios                       usuarios          @relation(fields: [id_usuario], references: [id_usuario], onUpdate: Restrict, map: "transacoes_ibfk_1")
+  caixas_dia                     caixas_dia        @relation(fields: [id_caixa_dia], references: [id_caixa_dia], onUpdate: Restrict, map: "transacoes_ibfk_2")
+  metodos_pagamento              metodos_pagamento @relation(fields: [id_metodo_pagamento], references: [id_metodo_pagamento], onUpdate: Restrict, map: "transacoes_ibfk_3")
 
   @@index([id_caixa_dia], map: "id_caixa_dia")
   @@index([id_metodo_pagamento], map: "id_metodo_pagamento")
   @@index([id_usuario], map: "id_usuario")
+}
+
+model empresa_config {
+  id_empresa   Int    @id @default(autoincrement())
+  razao_social String @db.Text
+  cnpj         String @db.Text
+  endereco     String @db.Text
 }

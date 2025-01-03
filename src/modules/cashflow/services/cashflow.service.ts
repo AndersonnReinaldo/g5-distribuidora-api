@@ -1,3 +1,4 @@
+import { formatToBRL } from 'src/utils/string';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { caixas_dia } from '@prisma/client';
@@ -55,7 +56,8 @@ export class CashflowService {
     const findCashflow = await this.prisma.caixas_dia.findUnique({
       where: { id_caixa_dia: data.id_caixa_dia, id_usuario: data.id_usuario,status:1 }
     });
-  
+
+
     if (!findCashflow) {
       throw new NotFoundException(`Não existe um caixa aberto para este usuário.`);
     }
@@ -65,7 +67,9 @@ export class CashflowService {
     if (caixaAbertoOntem && findCashflow.status === 1) {
       throw new NotFoundException(`Feche o caixa do dia anterior primeiro.`);
     }
-  
+    
+
+    let transacao;
     try {
       await this.prisma.$transaction(async (prisma) => {
         await prisma.caixas_dia.update({
@@ -75,12 +79,16 @@ export class CashflowService {
           }
         });
   
-        const transacao = await prisma.transacoes.create({
+        transacao = await prisma.transacoes.create({
           data: {
             id_caixa_dia: data.id_caixa_dia,
             id_metodo_pagamento: data.id_metodo_pagamento,
+            id_metodo_pagamento_secundario: data?.id_metodo_pagamento_secundario,
             id_usuario: data.id_usuario,
-            valor_total: data.valor_total
+            valor_total: data.valor_total,
+            valor_pago: data.valor_pago,
+            valor_pago_secundario: data?.valor_pago_secundario,
+            pagamento_misto: data?.pagamento_misto
           }
         });
   
@@ -106,24 +114,8 @@ export class CashflowService {
         }
       });
   
-      const itensPrint = data.products.map((item) => ({
-        name: item.nome,
-        quantity: item.quantidade,
-        price: item.valor_unitario * item.quantidade,
-        total: item.quantidade * item.valor_unitario
-      }));
-  
-      this.printerService.printReceipt(
-        {
-          address: "Beberibe - CE",
-          cnpj: "00.000.000/0000-00",
-          name: "G5 Distribuidora"
-        },
-        itensPrint,
-        'Dinheiro'
-      );
-  
-      return findCashflow;
+      return transacao;
+
     } catch (error) {
       throw new Error(`Erro ao processar a venda: ${error.message}`);
     }
@@ -166,8 +158,10 @@ export class CashflowService {
       }
     });
   
-    if (cashflowToday) {
-      throw new NotFoundException("Já existe um caixa para hoje para este usuário.");
+    if (cashflowToday && cashflowToday.status === 2) {
+      throw new NotFoundException("O caixa para hoje já foi fechado, consulte a administração.");
+    }else if(cashflowToday && cashflowToday.status === 1){
+        throw new NotFoundException("Já existe um caixa para hoje para este usuário.");
     }
   
     const newCashflow = await this.prisma.caixas_dia.create({
@@ -184,6 +178,50 @@ export class CashflowService {
       status: newCashflow.status,
       message: "Caixa aberto com sucesso."
     };
+  }
+
+  async printInvoicePdf(id_transacao: number) {
+    const transacao = await this.prisma.transacoes.findUnique({
+      where: { id_transacao },
+      include: {
+        caixas_dia: true,
+        itens_transacao: {
+          include: {
+            produtos: true
+          }
+        }
+      }
+    })
+
+    if (!transacao) {
+      throw new NotFoundException(`Transacao com ID ${id_transacao} nao encontrado.`);
+    }
+
+    const itensPrint = transacao.itens_transacao.map((item) => ({
+      name: item.produtos.nome,
+      quantity: item.quantidade,
+      price: item.valor_unitario * item.quantidade,
+      total: item.quantidade * item.valor_unitario
+    }));
+
+    const findMethodsPayment = await this.prisma.metodos_pagamento.findMany();
+  
+    const methodsPayment = findMethodsPayment.reduce((acc, method) => {
+      acc[method.id_metodo_pagamento] = method.descricao;
+      return acc;
+    }, {});
+
+    if (!findMethodsPayment) {      
+      throw new NotFoundException(`Metodos de pagamentos não encontrado.`);
+    }
+      
+    const textPayment = `
+    ${formatToBRL(transacao?.valor_pago)} foi pago com ${methodsPayment[transacao.id_metodo_pagamento]?.toLowerCase()}.${transacao.pagamento_misto ? `\nO restante, ${formatToBRL(transacao?.valor_pago_secundario)}, foi pago com ${methodsPayment[transacao.id_metodo_pagamento_secundario]?.toLowerCase()}.` : ''}
+    `.trim();
+
+    const blob = await this.printerService.generateBlob(itensPrint,textPayment);
+    
+    return blob;
   }
   
 }
