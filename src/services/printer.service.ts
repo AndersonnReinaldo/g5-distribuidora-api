@@ -75,6 +75,7 @@ export class PrinterService {
   }
 
   private async generateReceiptContentPdf(
+    userId:number,
     items: { name: string; quantity: number; price: number }[],
     payment: string,
   ): Promise<{ text: string[]; company: any }> {
@@ -83,6 +84,7 @@ export class PrinterService {
     const divisaoEstrelas = '*******************************************************************************************'
     const divisaoTracos = '----------------------------------------------------------------------------------------------------------';
     const company = await this.prisma.empresa_config.findFirst();
+    const user = await this.prisma.usuarios.findFirst({where:{id_usuario: userId }});
   
     // Cabeçalho do recibo
     receiptText.push(divisaoEstrelas);
@@ -91,6 +93,7 @@ export class PrinterService {
     receiptText.push(`Empresa: ${company.razao_social}`);
     receiptText.push(`CNPJ: ${company.cnpj}`);
     receiptText.push(`Endereço: ${company.endereco}`);
+    receiptText.push(`Responsável venda: ${user?.nome}`);
     receiptText.push(divisaoTracos);
   
     // Detalhes dos itens
@@ -115,10 +118,11 @@ export class PrinterService {
   }
 
   async generateBlob(
+    userId: number,
     items: { name: string; quantity: number; price: number }[],
     payment: string,
   ): Promise<Buffer> {
-    const { text } = await this.generateReceiptContentPdf(items, payment);
+    const { text } = await this.generateReceiptContentPdf(userId,items, payment);
 
     const pdfDoc = await PDFDocument.create();
     const page = pdfDoc.addPage([400, 600]);
@@ -139,11 +143,12 @@ export class PrinterService {
   
 
   async saveAsPdf(
+    userId: number,
     items: { name: string; quantity: number; price: number }[],
     payment: string,
   ): Promise<string> {
     const { company } = await this.generateReceiptContent(items, payment);
-    const pdfBytes = await this.generateBlob(items, payment);
+    const pdfBytes = await this.generateBlob(userId,items, payment);
 
     const filePath = `./temp/${Date.now()}-${company?.razao_social}.pdf`;
     fs.writeFileSync(filePath, pdfBytes);

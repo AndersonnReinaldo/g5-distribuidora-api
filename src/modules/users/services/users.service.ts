@@ -19,7 +19,13 @@ export class UsersService {
   }
 
   async findByUsername(usuario: string) {
-    return this.prisma.usuarios.findFirst({ where: { usuario } });
+    const user = await this.prisma.usuarios.findFirst({ where: { usuario } });
+    const company =  await this.prisma.empresa_config.findFirst();
+
+    if (!user) {
+      return null;
+    }
+    return { ...user, company };
   }
 
   async validatePassword(username: string, password: string) {

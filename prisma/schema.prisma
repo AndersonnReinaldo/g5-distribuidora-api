@@ -186,8 +186,13 @@ model transacoes {
 }
 
 model empresa_config {
-  id_empresa   Int    @id @default(autoincrement())
-  razao_social String @db.Text
-  cnpj         String @db.Text
-  endereco     String @db.Text
+  id_empresa     Int    @id @default(autoincrement())
+  razao_social   String @db.Text
+  cnpj           String @db.Text
+  endereco       String @db.Text
+  bg_primary     String @default("#FFFFFF") @db.VarChar(255)
+  bg_secondary   String @default("#F8F9FA") @db.VarChar(255)
+  logo           String @db.VarChar(255)
+  text_primary   String @default("#212529") @db.VarChar(255)
+  text_secondary String @default("#6C757D") @db.VarChar(255)
 }

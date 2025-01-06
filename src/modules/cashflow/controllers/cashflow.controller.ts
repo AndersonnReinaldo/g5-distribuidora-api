@@ -14,6 +14,12 @@ export class CashflowController {
   }
 
   @UseGuards(AuthGuard)
+  @Get('generateAllCashSummaries')
+  generateAllCashSummaries(): Promise<any[]> {
+    return this.cashflowService.generateAllCashSummaries();
+  }
+
+  @UseGuards(AuthGuard)
   @Get(':id')
   findOne(@Param('id') id: number): Promise<caixas_dia> {
     return this.cashflowService.findOne(+id);
@@ -44,7 +50,13 @@ export class CashflowController {
   }
 
   @UseGuards(AuthGuard)
-  @Put('closeBox/:id')
+  @Get('generateDailyCashSummary/:id')
+  generateDailyCashSummary(@Param('id') id: number): Promise<any> {
+    return this.cashflowService.generateDailyCashSummary(+id);
+  }
+
+  @UseGuards(AuthGuard)
+  @Put('reverseSale/:id')
   closeBox(@Param('id') id: number): Promise<any> {
     return this.cashflowService.closeBox(+id);
   }
@@ -54,6 +66,13 @@ export class CashflowController {
   @Post('sale')
   makeSale(@Body() stock: CheckoutAttributes): Promise<any> {
     return this.cashflowService.makeSale(stock);
+  }
+
+  @UseGuards(AuthGuard)
+  @Post('cancelSale')
+  cancelSale(@Body() stock: { id_transacao: number; id_usuario: number }): Promise<any> {
+    const { id_transacao,id_usuario } = stock;
+    return this.cashflowService.cancelSale(id_transacao,id_usuario);
   }
 
   @UseGuards(AuthGuard)
