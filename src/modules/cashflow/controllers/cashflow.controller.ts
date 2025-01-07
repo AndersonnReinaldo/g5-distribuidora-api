@@ -56,7 +56,7 @@ export class CashflowController {
   }
 
   @UseGuards(AuthGuard)
-  @Put('reverseSale/:id')
+  @Put('closeBox/:id')
   closeBox(@Param('id') id: number): Promise<any> {
     return this.cashflowService.closeBox(+id);
   }
@@ -84,6 +84,24 @@ export class CashflowController {
       res.set({
         'Content-Type': 'application/pdf',
         'Content-Disposition': `inline; filename=invoice-${id}.pdf`,
+      });
+
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error('Erro ao gerar o PDF:', error);
+      res.status(500).send('Erro ao gerar o PDF.');
+    }
+  }
+
+  @UseGuards(AuthGuard)
+  @Get('printFlashResumePdf/:id')
+  async printFlashResumePdf(@Param('id') id: number, @Res() res): Promise<any> {
+    try {
+      const pdfBuffer = await this.cashflowService.printFlashResumePdf(+id);
+
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `inline; filename=flash-${id}.pdf`,
       });
 
       res.send(pdfBuffer);

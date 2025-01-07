@@ -419,7 +419,12 @@ export class CashflowService {
         caixas_dia: true,
         itens_transacao: {
           include: {
-            produtos: true
+            produtos: {
+              include: {
+                unidades_medida: true,
+                categorias: true,
+              },
+            }
           }
         }
       }
@@ -432,8 +437,11 @@ export class CashflowService {
     const itensPrint = transacao.itens_transacao.map((item) => ({
       name: item.produtos.nome,
       quantity: item.quantidade,
+      totalQuantityPack: Math.floor(item.quantidade / item.produtos.multiplo_vendas),
+      totalRestUnit: item.quantidade % item.produtos.multiplo_vendas,
       price: item.valor_unitario * item.quantidade,
-      total: item.quantidade * item.valor_unitario
+      total: item.quantidade * item.valor_unitario,
+      nameUnit: item.produtos.unidades_medida.descricao
     }));
 
     const findMethodsPayment = await this.prisma.metodos_pagamento.findMany();
@@ -451,9 +459,84 @@ export class CashflowService {
     ${formatToBRL(transacao?.valor_pago)} foi pago com ${methodsPayment[transacao.id_metodo_pagamento]?.toLowerCase()}.${transacao.pagamento_misto ? `\nO restante, ${formatToBRL(transacao?.valor_pago_secundario)}, foi pago com ${methodsPayment[transacao.id_metodo_pagamento_secundario]?.toLowerCase()}.` : ''}
     `.trim();
 
-    const blob = await this.printerService.generateBlob(transacao.caixas_dia.id_usuario,itensPrint,textPayment);
+    const receipt = await this.printerService.generateReceiptSale(transacao.caixas_dia.id_usuario,itensPrint,textPayment);
     
-    return blob;
+    return receipt;
   }
+
+  async printFlashResumePdf(id_caixa_dia: number) {
+    const caixa = await this.prisma.caixas_dia.findUnique({ where: { id_caixa_dia } });
+  
+    if (!caixa) {
+      throw new NotFoundException(`Caixa com ID ${id_caixa_dia} não encontrado.`);
+    }
+  
+    const transacoes = await this.prisma.transacoes.findMany({
+      where: { id_caixa_dia },
+      include: {
+        itens_transacao: {
+          include: {
+            produtos: {
+              include: {
+                unidades_medida: true,
+                categorias: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  
+    const saledProducts = transacoes
+    .filter((transacao) => transacao.status === 1)
+    .flatMap((transacao) =>
+      transacao.itens_transacao.map((item) => {
+        const { quantidade, produtos } = item;
+        const { multiplo_vendas } = produtos;
+  
+        return {
+          name: produtos.nome,
+          quantity: quantidade,
+          name_unit: produtos.unidades_medida.descricao,
+          price: item.valor_unitario,
+          multiplo_vendas: multiplo_vendas,
+          total: quantidade * item.valor_unitario
+        };
+      })
+    );
+  
+    const sales = transacoes.filter((transacao) => transacao.status === 1)?.length || 0;
+    const canceledSales = transacoes.filter((transacao) => transacao.status === 2)?.length || 0;
+  
+    const canceledSalesProducts = transacoes
+    .filter((transacao) => transacao.status === 2)
+    .flatMap((transacao) =>
+      transacao.itens_transacao.map((item) => {
+        const { quantidade, produtos } = item;
+        const { multiplo_vendas } = produtos;
+  
+        return {
+          name: produtos.nome,
+          quantity: quantidade,
+          name_unit: produtos.unidades_medida.descricao,
+          price: item.valor_unitario,
+          multiplo_vendas: multiplo_vendas,
+          total: quantidade * item.valor_unitario
+        };
+      })
+      );
+  
+    const pdfBuffer = await this.printerService.generateFlash(
+      id_caixa_dia,
+      caixa?.id_usuario,
+      sales,
+      canceledSales,
+      saledProducts,
+      canceledSalesProducts
+    );
+  
+    return pdfBuffer;
+  }
+  
   
 }
