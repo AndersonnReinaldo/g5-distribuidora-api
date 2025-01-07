@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Body, Put, UseGuards, Res } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, Put, UseGuards, Res, Query } from '@nestjs/common';
 import { CashflowService } from '../services/cashflow.service';
 import { caixas_dia, transacoes } from '@prisma/client';
 import { AuthGuard } from 'src/modules/auth/auth.guard';
@@ -76,17 +76,32 @@ export class CashflowController {
   }
 
   @UseGuards(AuthGuard)
-  @Get('sale/invoice/pdf/:id')
-  async printInvoicePdf(@Param('id') id: number, @Res() res): Promise<any> {
+  @Get('sale/invoice/:id')
+  async printInvoice(@Param('id') id: number, @Res() res, @Query() query): Promise<any> {
     try {
-      const pdfBuffer = await this.cashflowService.printInvoicePdf(+id);
+      const response = await this.cashflowService.printInvoice(+id,query?.print);
 
-      res.set({
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename=invoice-${id}.pdf`,
-      });
+      if(!query?.print){
+        res.set({
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `inline; filename=invoice-${id}.pdf`,
+        });
+      }
 
-      res.send(pdfBuffer);
+      if(query?.print){
+        if(!response.status){
+          return res.status(404).json({
+            message: response.message,
+          })
+        }else{
+          return res.status(200).json({
+            message: response.message,
+          });
+        }
+      }else{
+        res.send(response);
+      }
+
     } catch (error) {
       console.error('Erro ao gerar o PDF:', error);
       res.status(500).send('Erro ao gerar o PDF.');
@@ -94,17 +109,31 @@ export class CashflowController {
   }
 
   @UseGuards(AuthGuard)
-  @Get('printFlashResumePdf/:id')
-  async printFlashResumePdf(@Param('id') id: number, @Res() res): Promise<any> {
+  @Get('printFlashResume/:id')
+  async printFlashResume(@Param('id') id: number, @Res() res, @Query() query): Promise<any> {
     try {
-      const pdfBuffer = await this.cashflowService.printFlashResumePdf(+id);
+      const response = await this.cashflowService.printFlashResume(+id,query?.print);
 
-      res.set({
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename=flash-${id}.pdf`,
-      });
+      if(!query?.print){
+        res.set({
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `inline; filename=invoice-${id}.pdf`,
+        });
+      }
 
-      res.send(pdfBuffer);
+      if(query?.print){
+        if(!response.status){
+          return res.status(404).json({
+            message: response.message,
+          })
+        }else{
+          return res.status(200).json({
+            message: response.message,
+          });
+        }
+      }else{
+        res.send(response);
+      }
     } catch (error) {
       console.error('Erro ao gerar o PDF:', error);
       res.status(500).send('Erro ao gerar o PDF.');

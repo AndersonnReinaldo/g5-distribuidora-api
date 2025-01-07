@@ -412,7 +412,7 @@ export class CashflowService {
     };
   }
 
-  async printInvoicePdf(id_transacao: number) {
+  async printInvoice(id_transacao: number, print: boolean): Promise<any> {
     const transacao = await this.prisma.transacoes.findUnique({
       where: { id_transacao },
       include: {
@@ -459,12 +459,29 @@ export class CashflowService {
     ${formatToBRL(transacao?.valor_pago)} foi pago com ${methodsPayment[transacao.id_metodo_pagamento]?.toLowerCase()}.${transacao.pagamento_misto ? `\nO restante, ${formatToBRL(transacao?.valor_pago_secundario)}, foi pago com ${methodsPayment[transacao.id_metodo_pagamento_secundario]?.toLowerCase()}.` : ''}
     `.trim();
 
-    const receipt = await this.printerService.generateReceiptSale(transacao.caixas_dia.id_usuario,itensPrint,textPayment);
+
+    if(print) {
+      const print = await this.printerService.generateReceiptSalePrint(transacao.caixas_dia.id_usuario,itensPrint,textPayment);
+
+      if(!print.status){
+        return {
+          status: print.status,
+          message: print.text
+        }
+      }else{
+        return {
+          status: print.status,
+          message: print.text
+        }
+      }
     
-    return receipt;
+    }else{
+      return await this.printerService.generateReceiptSale(transacao.caixas_dia.id_usuario,itensPrint,textPayment);
+    }
+
   }
 
-  async printFlashResumePdf(id_caixa_dia: number) {
+  async printFlashResume(id_caixa_dia: number, print: boolean): Promise<any> {
     const caixa = await this.prisma.caixas_dia.findUnique({ where: { id_caixa_dia } });
   
     if (!caixa) {
@@ -525,17 +542,39 @@ export class CashflowService {
         };
       })
       );
-  
-    const pdfBuffer = await this.printerService.generateFlash(
-      id_caixa_dia,
-      caixa?.id_usuario,
-      sales,
-      canceledSales,
-      saledProducts,
-      canceledSalesProducts
-    );
-  
-    return pdfBuffer;
+
+      if(print) {
+        const print = await this.printerService.generateFlashPrint(
+          id_caixa_dia,
+          caixa?.id_usuario,
+          sales,
+          canceledSales,
+          saledProducts,
+          canceledSalesProducts
+        );
+
+        if(!print.status){
+          return {
+            status: print.status,
+            message: print.text
+          }
+        }else{
+          return {
+            status: print.status,
+            message: print.text
+          }
+        }
+      
+      }else{
+        return await this.printerService.generateFlashPDF(
+          id_caixa_dia,
+          caixa?.id_usuario,
+          sales,
+          canceledSales,
+          saledProducts,
+          canceledSalesProducts
+        );
+      }
   }
   
   

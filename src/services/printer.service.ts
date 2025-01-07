@@ -1,82 +1,22 @@
-import { Injectable, Logger } from '@nestjs/common';
-import * as escpos from 'escpos';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import * as QRCode from 'qrcode';
-import * as fs from 'fs';
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import iconv from 'iconv-lite';
+import { PDFDocument, rgb, StandardFonts, utf8Encode } from 'pdf-lib';
 import { formatToBRL } from 'src/utils/string';
 import { PrismaService } from 'src/modules/prisma/prisma.service';
+import { SerialPort } from 'serialport'
+import utf8 from 'utf8';
 
 interface ItemSale { name: string; multiplo_vendas: number; quantity: number; name_unit:string; 
    price: number }
 
 @Injectable()
 export class PrinterService {
-  private device: any;
-  private printer: any;
   private readonly logger = new Logger(PrinterService.name);
 
-  constructor(private readonly prisma: PrismaService) {
-    try {
-      // Configurar a conexão com a impressora
-      escpos.USB = require('escpos-usb');
-      const devices = escpos.USB.findPrinter();
+  constructor(private readonly prisma: PrismaService) { }
 
-      if (devices.length === 0) {
-        this.logger.warn('Nenhuma impressora encontrada.');
-        this.device = null;
-        this.printer = null;
-      } else {
-        this.device = new escpos.USB();
-        const options = { encoding: 'GB18030' };
-        this.printer = new escpos.Printer(this.device, options);
-        this.logger.log('Impressora detectada e configurada.');
-      }
-    } catch (error) {
-      this.logger.error('Erro ao configurar a impressora:', error.message);
-      this.device = null;
-      this.printer = null;
-    }
-  }
-
-  private async generateReceiptContent(
-    items: { name: string; quantity: number; price: number }[],
-    payment: string,
-  ): Promise<{ text: string[]; qrCodeImage: string; company: any }> {
-    const total = items.reduce((sum, item) => sum + item.price, 0);
-    const receiptText = [];
-
-    const company = await this.prisma.empresa_config.findFirst();
-
-    receiptText.push('****************************************');
-    receiptText.push('        DOCUMENTO SEM VALOR FISCAL      ');
-    receiptText.push('****************************************');
-    receiptText.push(`Empresa: ${company.razao_social}`);
-    receiptText.push(`CNPJ: ${company.cnpj}`);
-    receiptText.push(`Endereço: ${company.endereco}`);
-    receiptText.push('----------------------------------------');
-
-    items.forEach((item) => {
-      receiptText.push(
-        `${item.name.padEnd(20)} Qtd: ${item.quantity}  R$ ${formatToBRL(item.price)}`,
-      );
-    });
-
-    receiptText.push('----------------------------------------');
-    receiptText.push(`TOTAL:                      R$ ${formatToBRL(total)}`);
-    receiptText.push(`FORMA DE PAGAMENTO: ${payment}`);
-    receiptText.push('****************************************');
-
-    const qrCodeData = 'Dados obrigatórios para o QR Code';
-    const qrCodeImage = await QRCode.toDataURL(qrCodeData);
-
-    receiptText.push('****************************************');
-    receiptText.push('        OBRIGADO PELA PREFERÊNCIA       ');
-    receiptText.push('****************************************');
-
-    return { text: receiptText, qrCodeImage, company };
-  }
-
-  private async generatePOSFlashSummary(
+  private async generatePDFlashSummaryPDF(
     id_caixa_dia: number,
     userId: number,
     sales: number,
@@ -149,10 +89,7 @@ export class PrinterService {
       item.totalQuantityPack = Math.floor(item.totalQuantity / item.multiploVendas);
       item.totalRestUnit = item.totalQuantity % item.multiploVendas;
     })
-  
-    const qtdeProdutosVendidos = productSummarySaled.reduce((sum, item) => sum + item.totalQuantity, 0);
-    const qtdeProdutosCancelados = productSummaryCanceled.reduce((sum, item) => sum + item.totalQuantity, 0);
-  
+    
     const divisaoEstrelas = '*******************************************************************************************';
     const divisaoTracos = '----------------------------------------------------------------------------------------------------------';
     const company = await this.prisma.empresa_config.findFirst();
@@ -219,13 +156,15 @@ export class PrinterService {
       receiptText.push('');
 
       let textResumeTotalSaled = '';
-      Object.keys(resumeTotalSaled).forEach((key,index) => {
-        textResumeTotalSaled += `${resumeTotalSaled[key]} ${key}(s)`;
-        if(index < Object.keys(resumeTotalSaled).length - 1) {
-          textResumeTotalSaled += ' | ';
+      Object.keys(resumeTotalSaled).forEach((key, index) => {
+        if (resumeTotalSaled[key] > 0) {
+          if (textResumeTotalSaled) {
+            textResumeTotalSaled += ' + ';
+          }
+          textResumeTotalSaled += `${resumeTotalSaled[key]} ${key}(s)`;
         }
       });
-
+      
       receiptText.push(`Total Vendido: ${textResumeTotalSaled} = ${formatToBRL(totalSold)}`);
     }
   
@@ -266,16 +205,138 @@ export class PrinterService {
 
       let textResumeTotalCanceled = '';
       Object.keys(resumeTotalCanceled).forEach((key,index) => {
-        textResumeTotalCanceled += `${resumeTotalCanceled[key]} ${key}(s)`;
-        if(index < Object.keys(resumeTotalCanceled).length - 1) {
-          textResumeTotalCanceled += ' | ';
+        if (resumeTotalCanceled[key] > 0) {
+          if (textResumeTotalCanceled) {
+            textResumeTotalCanceled += ' + ';
+          }
+          textResumeTotalCanceled += `${resumeTotalCanceled[key]} ${key}(s)`;
         }
       });
 
-      receiptText.push(`Total Vendido: ${textResumeTotalCanceled} = ${formatToBRL(totalCanceled)}`);
+      receiptText.push(`Total Cancelado: ${textResumeTotalCanceled} = ${formatToBRL(totalCanceled)}`);
     }
   
     receiptText.push(divisaoTracos);
+  
+    return { text: receiptText, company };
+  }
+
+  private async generatePDFlashSummaryThermalPrinter(
+    id_caixa_dia: number,
+    userId: number,
+    sales: number,
+    canceledSales: number,
+    items: ItemSale[],
+    items_canceled: ItemSale[],
+  ): Promise<{ text: string[]; company: any }> {
+    const divisaoEstrelas = '*************************************************';
+    const divisaoTracos = '--------------------------------------------------';
+  
+    const calculateTotals = (items: ItemSale[]) => {
+      const summary: {
+        name: string;
+        totalQuantity: number;
+        totalQuantityPack?: number;
+        totalPrice: number;
+        nameUnit: string;
+        multiploVendas: number;
+        totalRestUnit?: number;
+      }[] = [];
+  
+      items.forEach((item) => {
+        const existingProduct = summary.find((p) => p.name === item.name);
+        if (existingProduct) {
+          existingProduct.totalQuantity += item.quantity;
+          existingProduct.totalPrice += item.price * item.quantity;
+        } else {
+          summary.push({
+            name: item.name,
+            totalQuantity: item.quantity,
+            totalPrice: item.price * item.quantity,
+            nameUnit: item.name_unit,
+            multiploVendas: item.multiplo_vendas,
+          });
+        }
+      });
+  
+      summary.forEach((item) => {
+        item.totalQuantityPack = Math.floor(item.totalQuantity / item.multiploVendas);
+        item.totalRestUnit = item.totalQuantity % item.multiploVendas;
+      });
+  
+      return summary;
+    };
+  
+    const formatSummaryText = (
+      title: string,
+      summary: any[],
+      totalValue: number,
+    ) => {
+      const lines = [title];
+      if (summary.length === 0) {
+        lines.push('', 'Nenhum produto encontrado.', '');
+      } else {
+        const resumeTotal: Record<string, number> = {};
+  
+        summary.forEach((product) => {
+          let line = `${product.name} |`;
+          resumeTotal[product.nameUnit] = (resumeTotal[product.nameUnit] || 0) + product.totalQuantityPack;
+          resumeTotal['UNIDADE'] = (resumeTotal['UNIDADE'] || 0) + product.totalRestUnit;
+  
+          if (product.totalQuantityPack > 0) {
+            line += `${product.totalQuantityPack} ${product.nameUnit}(s)`;
+          }
+  
+          if (product.totalRestUnit > 0) {
+            line += ` + ${product.totalRestUnit} unidade(s)`;
+          }
+  
+          line += ` | Total (UN): ${product.totalQuantity} | ${formatToBRL(product.totalPrice)}`;
+          lines.push(line);
+        });
+  
+        const summaryLine = Object.keys(resumeTotal)
+          .map((key) => `${resumeTotal[key]} ${key}(s)`)
+          .join(' + ');
+        lines.push(`Total: ${summaryLine} = ${formatToBRL(totalValue)}`);
+      }
+      return lines;
+    };
+  
+    const totalSold = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const totalCanceled = items_canceled.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  
+    const productSummarySaled = calculateTotals(items);
+    const productSummaryCanceled = calculateTotals(items_canceled);
+  
+    const company = await this.prisma.empresa_config.findFirst();
+    const user = await this.prisma.usuarios.findFirst({ where: { id_usuario: userId } });
+  
+    const now = new Date();
+    const formattedDate = now.toLocaleDateString('pt-BR');
+    const formattedTime = now.toLocaleTimeString('pt-BR');
+  
+    const receiptText = [
+      divisaoEstrelas,
+      `RESUMO DO CAIXA ${id_caixa_dia}`.padStart(35, ' '),
+      divisaoEstrelas,
+      `Empresa: ${company.razao_social}`,
+      `CNPJ: ${company.cnpj}`,
+      `Endereço: ${company.endereco}`,
+      `Operador: ${user?.nome}`,
+      `Gerado em: ${formattedDate} as ${formattedTime}`,
+      divisaoTracos,
+      'Resumo Geral:',
+      `Total Valor Vendido: ${formatToBRL(totalSold)}`,
+      `Total de Vendas: ${sales}`,
+      `Total Valor Cancelado: ${formatToBRL(totalCanceled)}`,
+      `Vendas Canceladas: ${canceledSales}`,
+      divisaoTracos,
+      ...formatSummaryText('Resumo por Produto (Vendidos):', productSummarySaled, totalSold),
+      divisaoTracos,
+      ...formatSummaryText('Resumo por Produto (Cancelados):', productSummaryCanceled, totalCanceled),
+      divisaoTracos,
+    ];
   
     return { text: receiptText, company };
   }
@@ -327,17 +388,19 @@ export class PrinterService {
     });
   
     receiptText.push(divisaoTracos);
+
     let textResumeTotalSaled = '';
     Object.keys(resumeTotalSaled).forEach((key,index) => {
-      textResumeTotalSaled += `${resumeTotalSaled[key]} ${key}(s)`;
-      if(index < Object.keys(resumeTotalSaled).length - 1) {
-        textResumeTotalSaled += ' | ';
+      if (resumeTotalSaled[key] > 0) {
+        if (textResumeTotalSaled) {
+          textResumeTotalSaled += ' + ';
+        }
+        textResumeTotalSaled += `${resumeTotalSaled[key]} ${key}(s)`;
       }
     });
 
     receiptText.push(`Total Vendido: ${textResumeTotalSaled} = ${formatToBRL(total)}`);    receiptText.push(`FORMA DE PAGAMENTO: ${payment}`);
     receiptText.push(divisaoTracos);
-  
   
     // Rodapé do recibo
     receiptText.push(divisaoEstrelas);
@@ -347,6 +410,111 @@ export class PrinterService {
     return { text: receiptText, company };
   }
 
+  private async generateReceiptContentThermalPrinter(
+    userId: number,
+    items: { name: string; quantity: number; totalRestUnit: number; totalQuantityPack: number; price: number; nameUnit: string }[],
+    payment: string,
+  ): Promise<{ text: string[]; company: any }> {
+    const divisaoEstrelas = '*************************************************';
+    const divisaoTracos = '--------------------------------------------------';
+  
+    const calculateTotals = (items: any[]) => {
+      const summary: {
+        name: string;
+        totalQuantity: number;
+        totalQuantityPack?: number;
+        totalPrice: number;
+        nameUnit: string;
+        multiploVendas: number;
+        totalRestUnit?: number;
+      }[] = [];
+  
+      items.forEach((item) => {
+        const existingProduct = summary.find((p) => p.name === item.name);
+        if (existingProduct) {
+          existingProduct.totalQuantity += item.quantity;
+          existingProduct.totalPrice += item.price * item.quantity;
+        } else {
+          summary.push({
+            name: item.name,
+            totalQuantity: item.quantity,
+            totalPrice: item.price * item.quantity,
+            nameUnit: item.nameUnit,
+            multiploVendas: item.multiploVendas,
+          });
+        }
+      });
+  
+      summary.forEach((item) => {
+        item.totalQuantityPack = Math.floor(item.totalQuantity / item.multiploVendas);
+        item.totalRestUnit = item.totalQuantity % item.multiploVendas;
+      });
+  
+      return summary;
+    };
+  
+    const formatSummaryText = (title: string, summary: any[], totalValue: number, payment: string) => {
+      const lines = [title];
+      if (summary.length === 0) {
+        lines.push('', 'Nenhum item encontrado.', '');
+      } else {
+        const resumeTotal: Record<string, number> = {};
+  
+        summary.forEach((product) => {
+          let line = `${product.name} |`;
+          resumeTotal[product.nameUnit] = (resumeTotal[product.nameUnit] || 0) + product.totalQuantityPack;
+          resumeTotal['UNIDADE'] = (resumeTotal['UNIDADE'] || 0) + product.totalRestUnit;
+  
+          if (product.totalQuantityPack > 0) {
+            line += `${product.totalQuantityPack} ${product.nameUnit}(s)`;
+          }
+  
+          if (product.totalRestUnit > 0) {
+            line += ` + ${product.totalRestUnit} unidade(s)`;
+          }
+  
+          line += ` | Total (UN): ${product.totalQuantity} | ${formatToBRL(product.totalPrice)}`;
+          lines.push(line);
+        });
+  
+        const summaryLine = Object.keys(resumeTotal)
+          .map((key) => `${resumeTotal[key]} ${key}(s)`)
+          .join(' + ');
+        lines.push(`Total: ${summaryLine} = ${formatToBRL(totalValue)}`);
+        lines.push(`Forma de Pagamento: ${payment}`);
+      }
+      return lines;
+    };
+  
+    const totalSold = items.reduce((sum, item) => sum + item.price, 0);
+    const productSummary = calculateTotals(items);
+  
+    const company = await this.prisma.empresa_config.findFirst();
+    const user = await this.prisma.usuarios.findFirst({ where: { id_usuario: userId } });
+  
+    const now = new Date();
+    const formattedDate = now.toLocaleDateString('pt-BR');
+    const formattedTime = now.toLocaleTimeString('pt-BR');
+  
+    const receiptText = [
+      '          RECIBO DE VENDA SEM VALOR FISCAL',
+      divisaoEstrelas,
+      `Empresa: ${company?.razao_social || 'N/A'}`,
+      `CNPJ: ${company?.cnpj || 'N/A'}`,
+      `Endereço: ${company?.endereco || 'N/A'}`,
+      `Operador: ${user?.nome || 'N/A'}`,
+      `Gerado em: ${formattedDate} às ${formattedTime}`,
+      divisaoTracos,
+      ...formatSummaryText('Resumo por Produto:', productSummary, totalSold, payment),
+      divisaoTracos,
+      divisaoEstrelas,
+      'OBRIGADO PELA PREFERÊNCIA'.padStart(38, ' '),
+      divisaoEstrelas,
+    ];
+  
+    return { text: receiptText, company };
+  }
+  
   async generateReceiptSale(
     userId: number,
     items: { name: string; quantity: number; totalRestUnit: number; totalQuantityPack: number; price: number; nameUnit: string }[],
@@ -371,7 +539,7 @@ export class PrinterService {
     return Buffer.from(pdfBytes);
   }
 
-  async generateFlash(
+  async generateFlashPDF(
     id_caixa_dia: number,
     userId: number,
     sales:number,
@@ -379,22 +547,17 @@ export class PrinterService {
     items: ItemSale[],
     items_canceled: ItemSale[],
   ): Promise<Buffer> {
-    // Obter o resumo do ponto de venda
-    const { text } = await this.generatePOSFlashSummary(id_caixa_dia, userId,sales, canceledSales, items, items_canceled);
-  
-    // Criar o documento PDF
+    const { text } = await this.generatePDFlashSummaryPDF(id_caixa_dia, userId,sales, canceledSales, items, items_canceled);
+
     const pdfDoc = await PDFDocument.create();
     const page = pdfDoc.addPage([400, 600]);
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   
-    // Configurar layout inicial
     let y = 550;
     const lineHeight = 12;
   
-    // Escrever cada linha do texto no PDF
     text.forEach((line) => {
       if (y < 20) {
-        // Adicionar uma nova página se necessário
         y = 550;
         pdfDoc.addPage([400, 600]);
       }
@@ -408,52 +571,133 @@ export class PrinterService {
       y -= lineHeight;
     });
   
-    // Salvar e retornar o PDF como Buffer
     const pdfBytes = await pdfDoc.save();
     return Buffer.from(pdfBytes);
   }
+
+  async generateFlashPrint(
+    id_caixa_dia: number,
+    userId: number,
+    sales: number,
+    canceledSales: number,
+    items: ItemSale[],
+    items_canceled: ItemSale[],
+  ): Promise<{ status: boolean; text: string }> {
+    const { text } = await this.generatePDFlashSummaryThermalPrinter(id_caixa_dia, userId, sales, canceledSales, items, items_canceled);
+
+    try {
+      const paths = await SerialPort.list();
+    
+      if (paths.length === 0 || !paths[0]?.manufacturer) {
   
-  async saveAsPdf(
+        return {
+          status: false,
+          text: 'Nenhuma porta serial encontrada.'
+        }
+      }
+    
+      const print = new SerialPort({
+        path: paths[0].path,
+        baudRate: 9600,
+        lock: false,
+        autoOpen: false,
+      }); 
+  
+      const cleanText = text.map((line) =>
+        line.replace(/[^\x20-\x7E]/g, '')
+      );
+  
+      return new Promise((resolve, reject) => {
+        print.open(function (err) {
+          if (err) {
+            resolve({
+              status: false,
+              text: err.message
+            })
+          }
+        
+          print.write(cleanText.join('\n'), 'utf8',function (err) {
+            if (err) {
+              resolve({
+                status: false,
+                text: err.message
+              })
+            }else{
+              resolve({
+                status: true,
+                text: 'Flash impresso com sucesso!'
+              })
+            }
+          });
+        
+        });
+      })
+    } catch (error) {
+      return {
+        status: false,
+        text: error.message
+      }
+    }
+  }
+
+  async generateReceiptSalePrint(
     userId: number,
     items: { name: string; quantity: number; totalRestUnit: number; totalQuantityPack: number; price: number; nameUnit: string }[],
     payment: string,
-  ): Promise<string> {
-    const { company } = await this.generateReceiptContent(items, payment);
-    const pdfBytes = await this.generateReceiptSale(userId,items, payment);
+  ): Promise<{ status: boolean; text: string}> {
+    try {
+    const { text } = await this.generateReceiptContentThermalPrinter(userId, items, payment);
+    const paths = await SerialPort.list();
+  
+    if (paths.length === 0 || !paths[0]?.manufacturer) {
 
-    const filePath = `./temp/${Date.now()}-${company?.razao_social}.pdf`;
-    fs.writeFileSync(filePath, pdfBytes);
-
-    this.logger.log(`Cupom fiscal salvo em: ${filePath}`);
-    return filePath;
-  }
-
-  async printToThermalPrinter(
-    items: { name: string; quantity: number; price: number }[],
-    payment: string,
-  ): Promise<void> {
-    const { text, qrCodeImage } = await this.generateReceiptContent(items, payment);
-
-    if (!this.device || !this.printer) {
-      this.logger.warn('Impressora não disponível.');
-      return;
+      return {
+        status: false,
+        text: 'Nenhuma porta serial encontrada.'
+      }
     }
+  
+    const print = new SerialPort({
+      path: paths[0].path,
+      baudRate: 9600,
+      lock: false,
+      autoOpen: false,
+    }); 
+
+    const cleanText = text.map((line) =>
+      line.replace(/[^\x20-\x7E]/g, '')
+    );
 
     return new Promise((resolve, reject) => {
-      this.device.open(async (err: Error) => {
+      print.open(function (err) {
         if (err) {
-          this.logger.error('Erro ao abrir a conexão com a impressora:', err);
-          reject(err);
-          return;
+          resolve({
+            status: false,
+            text: err.message
+          })
         }
-
-        this.printer
-          .align('CT')
-          .text(text.join('\n'))
-          .qrimage(qrCodeImage, { size: 10 })
-          .cut()
-          .close(resolve);
+      
+        print.write(cleanText.join('\n'), 'utf8',function (err) {
+          if (err) {
+            resolve({
+              status: false,
+              text: err.message
+            })
+          }else{
+            resolve({
+              status: true,
+              text: 'Recibo impresso com sucesso!'
+            })
+          }
+        });
+      
       });
-    });
+    })
+  } catch (error) {
+    return {
+      status: false,
+      text: error.message
+    }
+  }
   }
 }
