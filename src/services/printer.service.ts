@@ -9,7 +9,7 @@ interface ItemSale {
    multiplo_vendas: number;
    quantity: number;
    name_unit:string; 
-   price: number 
+   price: number;
 }
 
 const divisaoEstrelasImpressoraTermica = '*************************************************';
@@ -246,8 +246,10 @@ export class PrinterService {
 
   private async generateReceiptContent(
     userId:number,
-    items: { name: string; quantity: number; totalRestUnit: number; totalQuantityPack: number; price: number, nameUnit: string }[],
+    items: { name: string; quantity: number; totalRestUnit: number; totalQuantityPack: number; price: number, nameUnit: string ;unitPrice: number}[],
     payment: string,
+    nameClient: string,
+    observation: string,
     thermalPrinter: boolean
   ): Promise<{ text: string[]; company: any }> {
     const total = items.reduce((sum, item) => sum + item.price, 0);
@@ -271,6 +273,12 @@ export class PrinterService {
     receiptText.push(`CNPJ: ${company.cnpj}`);
     receiptText.push(`Endereço: ${company.endereco}`);
     receiptText.push(`Operador: ${user?.nome}`);
+    if(nameClient) {
+      receiptText.push(`Cliente: ${nameClient}`);
+    }
+    if(observation) {
+      receiptText.push(`Observação: ${observation}`);
+    }
     receiptText.push(divisaoTracos);
   
     // Detalhes dos itens
@@ -293,7 +301,7 @@ export class PrinterService {
             text += ` ${item.totalRestUnit.toString()} ${item.totalRestUnit > 1 ? `unidade(s)` : 'unidade'} `;
           }
           
-          text += `| Total (UN): ${item.quantity} | ${formatToBRL(item.price)}`
+          text += `| Valor (UN): ${formatToBRL(item.unitPrice)} | ${formatToBRL(item.price)}`
           receiptText.push(text);
     });
   
@@ -326,12 +334,13 @@ export class PrinterService {
   
   async generateReceiptSale(
     userId: number,
-    items: { name: string; quantity: number; totalRestUnit: number; totalQuantityPack: number; price: number; nameUnit: string }[],
+    items: { name: string; quantity: number; totalRestUnit: number; totalQuantityPack: number; price: number; nameUnit: string; unitPrice: number }[],
     payment: string,
+    nameClient: string,
+    observation: string,
     thermalPrinter: boolean
   ): Promise<any> {
-    const { text } = await this.generateReceiptContent(userId,items, payment,thermalPrinter);
-
+    const { text } = await this.generateReceiptContent(userId,items, payment,nameClient, observation, thermalPrinter);
 
     if(!thermalPrinter) {
       const pdfDoc = await PDFDocument.create();

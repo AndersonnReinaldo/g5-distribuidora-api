@@ -40,6 +40,8 @@ interface MovementData {
     id_metodo_pagamento: number;
     id_metodo_pagamento_secundario: number;
     pagamento_misto: number;       
-    troco?: number;              
+    troco?: number;
+    observacao?: string;
+    nome_avulso?: string;              
   }
   

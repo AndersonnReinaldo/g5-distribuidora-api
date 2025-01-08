@@ -132,6 +132,8 @@ export class CashflowService {
           caixaId: transacao.id_caixa_dia,
           responsavel: transacao.usuarios?.nome || 'N/A',
           valorTotal: transacao.valor_total,
+          nome_avulso: transacao.nome_avulso,
+          observacao: transacao.observacao,
           metodoPagamento: {
             primarioId: transacao.id_metodo_pagamento,
             secundarioId: transacao.id_metodo_pagamento_secundario,
@@ -254,7 +256,9 @@ export class CashflowService {
             valor_total: data.valor_total,
             valor_pago: data.valor_pago,
             valor_pago_secundario: data?.valor_pago_secundario,
-            pagamento_misto: data?.pagamento_misto
+            pagamento_misto: data?.pagamento_misto,
+            observacao: data?.observacao,
+            nome_avulso: data?.nome_avulso
           }
         });
   
@@ -441,7 +445,8 @@ export class CashflowService {
       totalRestUnit: item.quantidade % item.produtos.multiplo_vendas,
       price: item.valor_unitario * item.quantidade,
       total: item.quantidade * item.valor_unitario,
-      nameUnit: item.produtos.unidades_medida.descricao
+      nameUnit: item.produtos.unidades_medida.descricao,
+      unitPrice: item.valor_unitario
     }));
 
     const findMethodsPayment = await this.prisma.metodos_pagamento.findMany();
@@ -461,7 +466,7 @@ export class CashflowService {
 
 
     if(print) {
-      const printFlash = await this.printerService.generateReceiptSale(transacao.caixas_dia.id_usuario,itensPrint,textPayment,!!print);
+      const printFlash = await this.printerService.generateReceiptSale(transacao.caixas_dia.id_usuario,itensPrint,textPayment,transacao?.nome_avulso,transacao?.observacao,!!print);
 
       if(!printFlash.status){
         return {
@@ -476,7 +481,7 @@ export class CashflowService {
       }
     
     }else{
-      return await this.printerService.generateReceiptSale(transacao.caixas_dia.id_usuario,itensPrint,textPayment,!!print);
+      return await this.printerService.generateReceiptSale(transacao.caixas_dia.id_usuario,itensPrint,textPayment,transacao?.nome_avulso,transacao?.observacao,!!print);
     }
 
   }

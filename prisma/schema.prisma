@@ -180,6 +180,8 @@ model transacoes {
   valor_pago_secundario          Float             @db.Float
   valor_total                    Float             @db.Float
   pagamento_misto                Int
+  nome_avulso                    String?           @db.Text
+  observacao                     String?           @db.Text
   status                         Int?              @default(1)
   itens_transacao                itens_transacao[]
   usuarios                       usuarios          @relation(fields: [id_usuario], references: [id_usuario], onUpdate: Restrict, map: "transacoes_ibfk_1")
