@@ -24,7 +24,7 @@ export class ProductService {
       return {
         ...produto,
         quantidade: produto.estoque[0]?.quantidade,
-        quantidadeMultiplo: produto.estoque[0]?.quantidade < produto.multiplo_vendas ? 0 : Math.round(produto.estoque[0]?.quantidade / produto.multiplo_vendas),
+        quantidadeMultiplo: produto.estoque[0]?.quantidade < produto.multiplo_vendas ? 0 : Math.floor(produto.estoque[0]?.quantidade / produto.multiplo_vendas),
         marca: produto.marca.descricao,
         categoria: produto.categorias?.descricao,
         unidade_medida: produto.unidades_medida?.descricao,
@@ -43,6 +43,12 @@ export class ProductService {
   }
 
   async create(data: Omit<produtos, 'id' | 'createdAt' | 'updatedAt'>): Promise<produtos> {
+    const findCode = await this.prisma.produtos.findUnique({ where: { codigo: data?.codigo  } });
+
+    if (findCode) {
+      throw new NotFoundException(`Produto com codigo ${data?.codigo} ja cadastrado.`);
+    }
+    
     return this.prisma.produtos.create({ data });
   }
 
