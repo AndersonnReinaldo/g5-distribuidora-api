@@ -18,6 +18,8 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   async onModuleInit() {
+
+    return;
     console.log('Iniciando Client Whatsapp...');
 
     this.client = new Client({

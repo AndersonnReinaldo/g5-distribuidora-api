@@ -461,22 +461,22 @@ export class CashflowService {
 
 
     if(print) {
-      const print = await this.printerService.generateReceiptSalePrint(transacao.caixas_dia.id_usuario,itensPrint,textPayment);
+      const printFlash = await this.printerService.generateReceiptSale(transacao.caixas_dia.id_usuario,itensPrint,textPayment,!!print);
 
-      if(!print.status){
+      if(!printFlash.status){
         return {
-          status: print.status,
-          message: print.text
+          status: printFlash.status,
+          message: printFlash.text
         }
       }else{
         return {
-          status: print.status,
-          message: print.text
+          status: printFlash.status,
+          message: printFlash.text
         }
       }
     
     }else{
-      return await this.printerService.generateReceiptSale(transacao.caixas_dia.id_usuario,itensPrint,textPayment);
+      return await this.printerService.generateReceiptSale(transacao.caixas_dia.id_usuario,itensPrint,textPayment,!!print);
     }
 
   }
@@ -544,35 +544,37 @@ export class CashflowService {
       );
 
       if(print) {
-        const print = await this.printerService.generateFlashPrint(
+        const printRecipt = await this.printerService.generateFlash(
           id_caixa_dia,
           caixa?.id_usuario,
           sales,
           canceledSales,
           saledProducts,
-          canceledSalesProducts
+          canceledSalesProducts,
+          !!print
         );
 
-        if(!print.status){
+        if(!printRecipt.status){
           return {
-            status: print.status,
-            message: print.text
+            status: printRecipt.status,
+            message: printRecipt.text
           }
         }else{
           return {
-            status: print.status,
-            message: print.text
+            status: printRecipt.status,
+            message: printRecipt.text
           }
         }
       
       }else{
-        return await this.printerService.generateFlashPDF(
+        return await this.printerService.generateFlash(
           id_caixa_dia,
           caixa?.id_usuario,
           sales,
           canceledSales,
           saledProducts,
-          canceledSalesProducts
+          canceledSalesProducts,
+          !!print
         );
       }
   }

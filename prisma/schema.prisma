@@ -51,6 +51,7 @@ model unidades_medida {
 
 model usuarios {
   id_usuario            Int                     @id @default(autoincrement())
+  id_empresa            Int
   nome                  String                  @db.VarChar(255)
   email                 String                  @unique(map: "email") @db.VarChar(255)
   usuario               String                  @unique(map: "usuario") @db.VarChar(255)
@@ -60,7 +61,11 @@ model usuarios {
   caixas_dia            caixas_dia[]
   cestas_basicas        cestas_basicas[]
   estoque_movimentacoes estoque_movimentacoes[]
+  permissoes_usuarios   permissoes_usuarios[]
   transacoes            transacoes[]
+  empresas              empresas                @relation(fields: [id_empresa], references: [id_empresa], onUpdate: Restrict, map: "usuarios_ibfk_1")
+
+  @@index([id_empresa], map: "id_empresa")
 }
 
 model categorias {
@@ -186,14 +191,49 @@ model transacoes {
   @@index([id_usuario], map: "id_usuario")
 }
 
-model empresa_config {
-  id_empresa     Int    @id @default(autoincrement())
-  razao_social   String @db.Text
-  cnpj           String @db.Text
-  endereco       String @db.Text
-  bg_primary     String @default("#FFFFFF") @db.VarChar(255)
-  bg_secondary   String @default("#F8F9FA") @db.VarChar(255)
-  logo           String @db.VarChar(255)
-  text_primary   String @default("#212529") @db.VarChar(255)
-  text_secondary String @default("#6C757D") @db.VarChar(255)
+model empresas {
+  id_empresa     Int        @id @default(autoincrement())
+  razao_social   String     @db.Text
+  cnpj           String     @db.Text
+  endereco       String     @db.Text
+  bg_primary     String     @default("#FFFFFF") @db.VarChar(255)
+  bg_secondary   String     @default("#F8F9FA") @db.VarChar(255)
+  logo           String     @db.VarChar(255)
+  text_primary   String     @default("#212529") @db.VarChar(255)
+  text_secondary String     @default("#6C757D") @db.VarChar(255)
+  usuarios       usuarios[]
+}
+
+model modulos {
+  id_modulo           Int                   @id @default(autoincrement())
+  nome                String                @db.VarChar(255)
+  criado_em           DateTime?             @default(now()) @db.Timestamp(0)
+  permissoes_usuarios permissoes_usuarios[]
+  submodulos          submodulos[]
+}
+
+model permissoes_usuarios {
+  id_permissoes_usuarios Int         @id @default(autoincrement())
+  id_usuario             Int
+  id_modulo              Int
+  id_sub_modulo          Int?
+  criado_em              DateTime?   @default(now()) @db.Timestamp(0)
+  usuarios               usuarios    @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade, onUpdate: NoAction, map: "permissoes_usuarios_ibfk_1")
+  modulos                modulos     @relation(fields: [id_modulo], references: [id_modulo], onDelete: Cascade, onUpdate: NoAction, map: "permissoes_usuarios_ibfk_2")
+  submodulos             submodulos? @relation(fields: [id_sub_modulo], references: [id_sub_modulo], onDelete: Cascade, onUpdate: NoAction, map: "permissoes_usuarios_ibfk_3")
+
+  @@index([id_modulo], map: "id_modulo")
+  @@index([id_sub_modulo], map: "id_sub_modulo")
+  @@index([id_usuario], map: "id_usuario")
+}
+
+model submodulos {
+  id_sub_modulo       Int                   @id @default(autoincrement())
+  id_modulo           Int
+  nome                String                @db.VarChar(255)
+  criado_em           DateTime?             @default(now()) @db.Timestamp(0)
+  permissoes_usuarios permissoes_usuarios[]
+  modulos             modulos               @relation(fields: [id_modulo], references: [id_modulo], onDelete: Cascade, onUpdate: NoAction, map: "submodulos_ibfk_1")
+
+  @@index([id_modulo], map: "id_modulo")
 }

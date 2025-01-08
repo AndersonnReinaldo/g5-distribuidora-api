@@ -6,7 +6,7 @@ import * as bcrypt from 'bcrypt';
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createUser(nome:string, email: string, usuario: string, password: string) {
+  async createUser(nome:string, email: string,id_empresa:number, usuario: string, password: string) {
     const existingUser = await this.prisma.usuarios.findFirst({ where: { email } });
     if (existingUser) {
       throw new BadRequestException('Este email já está cadastrado.');
@@ -14,13 +14,17 @@ export class UsersService {
 
     const hashedPassword = await bcrypt.hash(String(password), 10);
     return this.prisma.usuarios.create({
-      data: { nome,email, usuario, senha: hashedPassword },
+      data: { nome,email, id_empresa, usuario, senha: hashedPassword },
     });
   }
 
   async findByUsername(usuario: string) {
     const user = await this.prisma.usuarios.findFirst({ where: { usuario } });
-    const company =  await this.prisma.empresa_config.findFirst();
+    const company =  await this.prisma.empresas.findFirst({
+      where: {
+        id_empresa: user.id_empresa
+      }
+    });
 
     if (!user) {
       return null;
