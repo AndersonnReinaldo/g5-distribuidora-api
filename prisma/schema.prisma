@@ -27,6 +27,7 @@ model produtos {
   multiplo_vendas            Int                       @default(1)
   valor_unitario             Float                     @db.Float
   nome                       String                    @db.VarChar(255)
+  codigo                     String                    @unique(map: "codigo") @db.VarChar(50)
   image                      String?                   @db.Text
   status                     Int                       @default(1)
   cestas_basicas_produtos    cestas_basicas_produtos[]

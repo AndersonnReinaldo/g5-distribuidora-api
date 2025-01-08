@@ -26,8 +26,8 @@ export class AuthService {
     }
 
     const payload = { sub: foundUser.id_usuario, username: foundUser.senha };
-
-    const token = this.jwtService.sign(payload);
+    const secret:string = this.configService.get<string>('JWT_SECRET')
+    const token = this.jwtService.sign(payload, { secret });
     return { token, expiresIn: this.jwtExpirationTimeInSeconds, user: foundUser };
   }
 }

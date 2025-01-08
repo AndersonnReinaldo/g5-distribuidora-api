@@ -43,6 +43,12 @@ export class ProductService {
   }
 
   async create(data: Omit<produtos, 'id' | 'createdAt' | 'updatedAt'>): Promise<produtos> {
+    const findCode = await this.prisma.produtos.findUnique({ where: { codigo: data?.codigo  } });
+
+    if (findCode) {
+      throw new NotFoundException(`Produto com codigo ${data?.codigo} ja cadastrado.`);
+    }
+    
     return this.prisma.produtos.create({ data });
   }
 

@@ -34,6 +34,7 @@ export class StockService {
         produtos:{
            nome,
            image,
+           codigo,
            categorias,
            marca,
            multiplo_vendas,
@@ -46,7 +47,8 @@ export class StockService {
         id_estoque,
         multiplo_vendas,
         valor_unitario,
-        nome: nome,
+        nome,
+        codigo,
         image,
         id_categoria: categorias?.id_categoria,
         categoria: categorias?.descricao,
