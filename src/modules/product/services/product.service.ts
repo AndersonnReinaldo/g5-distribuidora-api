@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { produtos } from '@prisma/client';
+import { produtos, marcas } from '@prisma/client';
 
 @Injectable()
 export class ProductService {
@@ -9,7 +9,7 @@ export class ProductService {
   async findAll(): Promise<produtos[]> {
     const produtos = await this.prisma.produtos.findMany({
       include: { 
-        marca: true,
+        marca:true,
         categorias: true,
         unidades_medida: true,
         estoque:{
@@ -42,13 +42,7 @@ export class ProductService {
     return produto;
   }
 
-  async create(data: Omit<produtos, 'id' | 'createdAt' | 'updatedAt'>): Promise<produtos> {
-    const findCode = await this.prisma.produtos.findUnique({ where: { codigo: data?.codigo  } });
-
-    if (findCode) {
-      throw new NotFoundException(`Produto com codigo ${data?.codigo} ja cadastrado.`);
-    }
-    
+  async create(data: Omit<produtos, 'id' | 'createdAt' | 'updatedAt'>): Promise<produtos> {  
     return this.prisma.produtos.create({ data });
   }
 

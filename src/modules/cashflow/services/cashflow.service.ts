@@ -1,9 +1,10 @@
 import { formatToBRL } from 'src/utils/string';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { caixas_dia, transacoes } from '@prisma/client';
 import { StockService } from 'src/modules/stock/services/stock.service';
 import { PrinterService } from 'src/services/printer.service';
+import { currentDate } from 'src/utils/date';
 
 @Injectable()
 export class CashflowService {
@@ -107,9 +108,6 @@ export class CashflowService {
             itens_transacao: {
               include: {
                 produtos: true,
-              },
-              where:{
-                status: 1
               }
             },
           },
@@ -117,41 +115,63 @@ export class CashflowService {
   
         const totais = {
           totalCaixa: caixa?.valor_total,
+          totalCancelado: transacoes.filter((transacao) => transacao.status === 2).reduce((sum, transacao) => sum + transacao.valor_total, 0),
           totalSangria: caixa?.valor_sangria,
           totalItems: transacoes.reduce((sum, transacao) => {
             const quantidadeItens = transacao.itens_transacao?.reduce((innerSum, item) => innerSum + item.quantidade, 0) || 0;
             return sum + quantidadeItens;
           }, 0),
         };
+
+          const findMethodsPayment = await this.prisma.metodos_pagamento.findMany();
+
+
+        const methodsPayment = findMethodsPayment.reduce((acc, method) => {
+          acc[method.id_metodo_pagamento] = method.descricao;
+          return acc;
+        }, {});
+    
+        if (!findMethodsPayment) {      
+          throw new NotFoundException(`Metodos de pagamentos não encontrado.`);
+        }
+
+        const usuarios = await this.prisma.usuarios.findMany();
+          
         
-  
         const transacoesFormatadas = transacoes.map((transacao) => ({
           id: transacao.id_transacao,
           usuarioId: transacao.id_usuario,
           clienteId: transacao.id_cliente,
           caixaId: transacao.id_caixa_dia,
           responsavel: transacao.usuarios?.nome || 'N/A',
+          responsavelCancelamento: usuarios.find((user) => user.id_usuario === transacao.id_usuario_cancelamento)?.nome || 'N/A',
           valorTotal: transacao.valor_total,
           nome_avulso: transacao.nome_avulso,
           observacao: transacao.observacao,
-          metodoPagamento: {
+          pagamento: {
             primarioId: transacao.id_metodo_pagamento,
             secundarioId: transacao.id_metodo_pagamento_secundario,
             pagamentoMisto: Boolean(transacao.pagamento_misto),
+            pagamentoText: `
+            ${formatToBRL(transacao?.valor_pago)} foi pago com ${methodsPayment[transacao.id_metodo_pagamento]?.toLowerCase()}.${transacao.pagamento_misto ? `\nO restante, ${formatToBRL(transacao?.valor_pago_secundario)}, foi pago com ${methodsPayment[transacao.id_metodo_pagamento_secundario]?.toLowerCase()}.` : ''}
+            `.trim()
+
           },
           data: transacao.data_transacao,
+          dataCancelamento: transacao.data_cancelamento,
           valores: {
             total: transacao.valor_total,
             pago: transacao.valor_pago,
             pagoSecundario: transacao.valor_pago_secundario,
-          },
+
+              },
           status: transacao.status,
           itens: transacao.itens_transacao.map((item) => ({
             id: item.id_item_transacao,
             quantidade: item.quantidade,
             valorUnitario: item.valor_unitario,
             desconto: item.desconto,
-            status: item.status === 1 ? 'Ativo' : 'Inativo',
+            status: item.status,
             produto: {
               id: item.produtos.id_produto,
               nome: item.produtos.nome,
@@ -161,7 +181,7 @@ export class CashflowService {
               multiploVendas: item.produtos.multiplo_vendas,
               valorUnitario: item.produtos.valor_unitario,
               imagem: item.produtos.image,
-              status: item.produtos.status === 1 ? 'Disponível' : 'Indisponível',
+              status: item.produtos.status,
             },
           })),
         }));
@@ -346,6 +366,8 @@ export class CashflowService {
         reversedTransaction = await prisma.transacoes.update({
           where: { id_transacao: transaction.id_transacao },
           data: {
+            id_usuario_cancelamento: userId,
+            data_cancelamento: new Date(),
             status: 2
           }
         });
@@ -416,6 +438,84 @@ export class CashflowService {
     };
   }
 
+  async checkBoxDay(id_usuario: number): Promise<caixas_dia> {
+    const today = new Date().toISOString().slice(0, 10);
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayISO = yesterday.toISOString().slice(0, 10);
+  
+    // Verifica se há um caixa aberto de ontem ainda
+    const openCashflowYesterday = await this.prisma.caixas_dia.findFirst({
+      where: {
+        id_usuario,
+        status: 1, // Status 1 significa "aberto"
+        data_hora_abertura: {
+          gte: new Date(`${yesterdayISO}T00:00:00`),
+          lte: new Date(`${yesterdayISO}T23:59:59`),
+        },
+      },
+    });
+  
+    if (openCashflowYesterday) {
+      throw new ConflictException({
+        message: "Você deve fechar o caixa do dia anterior antes de abrir o caixa de hoje.",
+        typeConflict: 1
+      });
+    }
+  
+    // Verifica se há um caixa aberto hoje
+    const openCashflowToday = await this.prisma.caixas_dia.findFirst({
+      where: {
+        id_usuario,
+        data_hora_abertura: {
+          gte: new Date(`${today}T00:00:00`),
+          lte: new Date(`${today}T23:59:59`),
+        },
+        status: 1, // Status 1 significa "aberto"
+      },
+    });
+  
+    if (openCashflowToday) {
+      return openCashflowToday;
+    }
+  
+    // Verifica se o caixa de hoje foi fechado
+    const closedCashflowToday = await this.prisma.caixas_dia.findFirst({
+      where: {
+        id_usuario,
+        data_hora_abertura: {
+          gte: new Date(`${today}T00:00:00`),
+          lte: new Date(`${today}T23:59:59`),
+        },
+        status: 2, // Status 2 significa "fechado"
+      },
+    });
+  
+    if (closedCashflowToday) {
+      throw new ConflictException({
+        message: "O caixa de hoje foi fechado!",
+        typeConflict: 2
+      });
+    }
+  
+    // Caso nenhum caixa esteja aberto hoje e nenhum caixa esteja aberto de ontem
+    const cashflowToday = await this.prisma.caixas_dia.findFirst({
+      where: {
+        id_usuario,
+        data_hora_abertura: {
+          gte: new Date(`${today}T00:00:00`),
+          lte: new Date(`${today}T23:59:59`),
+        },
+      },
+    });
+  
+    if (!cashflowToday) {
+      throw new NotFoundException("Não existe um caixa para hoje para este usuário.");
+    }
+  
+    return cashflowToday;
+  }
+  
   async printInvoice(id_transacao: number, print: boolean): Promise<any> {
     const transacao = await this.prisma.transacoes.findUnique({
       where: { id_transacao },
