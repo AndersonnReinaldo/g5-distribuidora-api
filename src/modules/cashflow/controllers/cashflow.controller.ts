@@ -50,6 +50,12 @@ export class CashflowController {
   }
 
   @UseGuards(AuthGuard)
+  @Get('checkBoxDay/:id')
+  checkBoxDay(@Param('id') id: number): Promise<any> {
+    return this.cashflowService.checkBoxDay(+id);
+  }
+
+  @UseGuards(AuthGuard)
   @Get('generateDailyCashSummary/:id')
   generateDailyCashSummary(@Param('id') id: number): Promise<any> {
     return this.cashflowService.generateDailyCashSummary(+id);

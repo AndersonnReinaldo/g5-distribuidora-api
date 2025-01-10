@@ -26,16 +26,17 @@ model produtos {
   id_unidade_medida_multiplo Int                       @default(1)
   multiplo_vendas            Int                       @default(1)
   valor_unitario             Float                     @db.Float
+  valor_unitario_custo       Float                     @db.Float
   nome                       String                    @db.VarChar(255)
-  codigo                     String                    @unique(map: "codigo") @db.VarChar(50)
+  codigo                     String?                   @unique(map: "codigo") @db.VarChar(50)
   image                      String?                   @db.Text
   status                     Int                       @default(1)
   cestas_basicas_produtos    cestas_basicas_produtos[]
   estoque                    estoque[]
   itens_transacao            itens_transacao[]
   categorias                 categorias                @relation(fields: [id_categoria], references: [id_categoria], onUpdate: Restrict, map: "produtos_ibfk_2")
-  marca                      marcas                    @relation(fields: [id_marca], references: [id_marca], onUpdate: Restrict, map: "produtos_ibfk_3")
   unidades_medida            unidades_medida           @relation(fields: [id_unidade_medida_multiplo], references: [id_unidade_medida], onUpdate: Restrict, map: "produtos_ibfk_4")
+  marca                      marcas                    @relation(fields: [id_marca], references: [id_marca], onUpdate: Restrict, map: "produtos_ibfk_3")
 
   @@index([id_categoria], map: "produtos_ibfk_2")
   @@index([id_marca], map: "id_marca")
@@ -166,9 +167,11 @@ model transacoes {
   id_cliente                     Int?
   id_caixa_dia                   Int
   id_usuario                     Int
+  id_usuario_cancelamento        Int?
   id_metodo_pagamento            Int
   id_metodo_pagamento_secundario Int?
   data_transacao                 DateTime          @default(now()) @db.Timestamp(0)
+  data_cancelamento              DateTime?         @db.Timestamp(0)
   valor_pago                     Float             @db.Float
   valor_pago_secundario          Float             @db.Float
   valor_total                    Float             @db.Float
